@@ -26,25 +26,26 @@ impl TTYForm {
 
 		for wrapped_key in stdin.keys() {
 			let key = wrapped_key.unwrap();
+			
 			match key {
 				Key::Char(ch) => {
 					if ch == 'q' {
 						break;
 					}
-
-					schema.handle_input(key);
-					let mut lines = schema.render();
-
-					let mut batch = tty.start_update();
-					let mut line_index = 0;
-					while !lines.is_empty() {
-						batch.set_line(line_index, lines.remove(0));
-						line_index += 1;
-					}
-					tty.perform_update(batch).unwrap();
 				},
 				_ => {},
 			}
+
+			schema.handle_input(key);
+			let mut lines = schema.render();
+
+			let mut batch = tty.start_update();
+			let mut line_index = 0;
+			while !lines.is_empty() {
+				batch.set_line(line_index, lines.remove(0));
+				line_index += 1;
+			}
+			tty.perform_update(batch).unwrap();
 		}
 
 		tty.end().unwrap();
