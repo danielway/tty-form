@@ -73,48 +73,37 @@ impl Step {
 pub trait Control {
 	fn render(&self) -> Segment;
 	fn handle_input(&mut self, key: Key);
+	fn value(&self) -> &String;
 }
 
 pub struct TextControl {
-	data: TextControlData,
+	pub(crate) value: String,
 }
 
 impl TextControl {
 	pub fn new() -> TextControl {
 		TextControl {
-			data: TextControlData::new(),
+			value: String::new(),
 		}
 	}
 }
 
 impl Control for TextControl {
 	fn render(&self) -> Segment {
-		Segment::new(self.data.value().to_string())
+		Segment::new(self.value.to_string())
 	}
 
 	fn handle_input(&mut self, key: Key) {
 		match key {
 			Key::Char(ch) => {
-				let value = &mut self.data.value;
+				let value = &mut self.value;
 				value.push(ch);
 			},
 			_ => {},
 		}
 	}
-}
 
-pub struct TextControlData {
-	pub(crate) value: String,
-}
-
-impl TextControlData {
-	pub(crate) fn new() -> TextControlData {
-		TextControlData {
-			value: String::new(),
-		}
-	}
-
-	pub fn value(&self) -> &str {
+	fn value(&self) -> &String {
 		&self.value
 	}
 }
