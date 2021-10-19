@@ -1,157 +1,37 @@
 use tty_interface::line::Line;
-use tty_interface::segment::Segment;
+
 use termion::event::Key;
 
+use crate::step::Step;
+
 pub struct Schema {
-	pub(crate) steps: Vec<Step>,
+    pub(crate) steps: Vec<Step>,
 }
 
 impl Schema {
-	pub fn new() -> Schema {
-		Schema {
-			steps: Vec::new(),
-		}
-	}
+    pub fn new() -> Schema {
+        Schema { steps: Vec::new() }
+    }
 
-	pub fn steps(&self) -> &Vec<Step> {
-		&self.steps
-	}
+    pub fn steps(&self) -> &Vec<Step> {
+        &self.steps
+    }
 
-	pub fn add_step(&mut self, step: Step) {
-		self.steps.push(step)
-	}
+    pub fn add_step(&mut self, step: Step) {
+        self.steps.push(step)
+    }
 
-	pub(crate) fn render(&mut self) -> Vec<Line> {
-		let mut lines: Vec<Line> = Vec::new();
-		for step in &self.steps {
-			lines.push(step.render());
-		}
-		lines
-	}
+    pub(crate) fn render(&mut self) -> Vec<Line> {
+        let mut lines: Vec<Line> = Vec::new();
+        for step in &self.steps {
+            lines.push(step.render());
+        }
+        lines
+    }
 
-	pub(crate) fn handle_input(&mut self, key: Key) {
-		for step in &mut self.steps {
-			step.handle_input(key);
-		}
-	}
-}
-
-pub struct Step {
-	pub(crate) controls: Vec<Box<dyn Control>>,
-}
-
-impl Step {
-	pub fn new() -> Step {
-		Step {
-			controls: Vec::new(),
-		}
-	}
-
-	pub fn controls(&self) -> &Vec<Box<dyn Control>> {
-		&self.controls
-	}
-
-	pub fn add_control(&mut self, control: Box<dyn Control>) {
-		self.controls.push(control);
-	}
-
-	pub(crate) fn render(&self) -> Line {
-		let mut segments: Vec<Segment> = Vec::new();
-		for control in &self.controls {
-			segments.push(control.render());
-		}
-		Line::new(segments)
-	}
-
-	pub(crate) fn handle_input(&mut self, key: Key) {
-		for control in &mut self.controls {
-			control.handle_input(key);
-		}
-	}
-}
-
-pub trait Control {
-	fn render(&self) -> Segment;
-	fn handle_input(&mut self, key: Key);
-	fn value(&self) -> &String;
-}
-
-pub struct TextControl {
-	pub(crate) value: String,
-}
-
-impl TextControl {
-	pub fn new() -> TextControl {
-		TextControl {
-			value: String::new(),
-		}
-	}
-}
-
-impl Control for TextControl {
-	fn render(&self) -> Segment {
-		Segment::new(self.value.to_string())
-	}
-
-	fn handle_input(&mut self, key: Key) {
-		match key {
-			Key::Char(ch) => {
-				let value = &mut self.value;
-				value.push(ch);
-			},
-			_ => {},
-		}
-	}
-
-	fn value(&self) -> &String {
-		&self.value
-	}
-}
-
-pub struct OptionControl {
-	pub(crate) options: Vec<String>,
-	pub(crate) selected_option: usize,
-	pub(crate) value: String,
-}
-
-impl OptionControl {
-	pub fn new(options: Vec<String>) -> OptionControl {
-		OptionControl {
-			options,
-			selected_option: 0,
-			value: String::new(),
-		}
-	}
-}
-
-impl Control for OptionControl {
-	fn render(&self) -> Segment {
-		Segment::new(self.value.to_string())
-	}
-
-	fn handle_input(&mut self, key: Key) {
-		match key {
-			Key::Up => {
-				if self.selected_option > 0 {
-					self.selected_option -= 1;
-				} else {
-					self.selected_option = self.options.len() - 1;
-				}
-			},
-			Key::Down => {
-				if self.selected_option < self.options.len() - 1 {
-					self.selected_option += 1;
-				} else {
-					self.selected_option = 0;
-				}
-			},
-			_ => {},
-		}
-
-		self.value = self.options[self.selected_option].to_string();
-	}
-
-	fn value(&self) -> &String {
-		&self.value
-	}
+    pub(crate) fn handle_input(&mut self, key: Key) {
+        for step in &mut self.steps {
+            step.handle_input(key);
+        }
+    }
 }

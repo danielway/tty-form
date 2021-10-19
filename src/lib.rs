@@ -22,8 +22,10 @@ Some notes around schema and data:
             should be open to serialization in the future
 */
 
+pub mod control;
 pub mod form;
 pub mod schema;
+pub mod step;
 
 #[cfg(test)]
 mod tests {
