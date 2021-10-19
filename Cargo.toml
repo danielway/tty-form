@@ -10,3 +10,4 @@ repository = "https://github.com/danielway/tty-form"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+termion = "1.5.6"
