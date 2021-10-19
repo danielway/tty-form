@@ -1,13 +1,16 @@
-use tty_form::schema::TextControl;
+// use tty_form::schema::TextControl;
+use tty_form::schema::OptionControl;
 use tty_form::schema::Step;
 use tty_form::schema::Schema;
 use tty_form::form::TTYForm;
 
 fn main() {
-	let text_input = TextControl::new();
+	// let text_input = TextControl::new();
+	let options = vec!["Option 1".to_string(), "Option 2".to_string()];
+	let option_input = OptionControl::new(options);
 
 	let mut step = Step::new();
-	step.add_control(Box::new(text_input));
+	step.add_control(Box::new(option_input));
 
 	let mut schema = Schema::new();
 	schema.add_step(step);
