@@ -23,6 +23,7 @@ Some notes around schema and data:
 */
 
 pub mod form;
+pub mod schema;
 
 #[cfg(test)]
 mod tests {
