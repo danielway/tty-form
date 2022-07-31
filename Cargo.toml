@@ -10,5 +10,5 @@ repository = "https://github.com/danielway/tty-text"
 [dependencies]
 termion = "1.5.6"
 unicode-segmentation = "1.9.0"
-tty-interface = { path = "../tty-interface" }
-tty-text = { path = "../tty-text" }
+tty-interface = "3.0.0"
+tty-text = "1.0.0"
