@@ -1,38 +1,27 @@
-use crate::control::Control;
-use termion::event::Key;
-use tty_interface::line::Line;
-use tty_interface::segment::Segment;
+use crate::element::Element;
 
 pub struct Step {
-    pub(crate) controls: Vec<Box<dyn Control>>,
+    elements: Vec<Box<dyn Element>>,
 }
 
 impl Step {
-    pub fn new() -> Step {
-        Step {
-            controls: Vec::new(),
-        }
+    pub fn new(elements: Vec<Box<dyn Element>>) -> Self {
+        Self { elements }
     }
 
-    pub fn controls(&self) -> &Vec<Box<dyn Control>> {
-        &self.controls
+    pub fn elements(&self) -> &Vec<Box<dyn Element>> {
+        &self.elements
     }
 
-    pub fn add_control(&mut self, control: Box<dyn Control>) {
-        self.controls.push(control);
+    pub fn elements_mut(&mut self) -> &mut Vec<Box<dyn Element>> {
+        &mut self.elements
     }
 
-    pub(crate) fn render(&self) -> Line {
-        let mut segments: Vec<Segment> = Vec::new();
-        for control in &self.controls {
-            segments.push(control.render());
-        }
-        Line::new(segments)
+    pub fn get_element(&self, element_index: usize) -> &dyn Element {
+        self.elements[element_index].as_ref()
     }
 
-    pub(crate) fn handle_input(&mut self, key: Key) {
-        for control in &mut self.controls {
-            control.handle_input(key);
-        }
+    pub fn get_element_mut(&mut self, element_index: usize) -> &mut dyn Element {
+        self.elements[element_index].as_mut()
     }
 }
