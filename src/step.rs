@@ -29,6 +29,7 @@ pub enum Step {
 /// ```
 pub struct CompoundStep {
     controls: Vec<Control>,
+    max_line_length: Option<u8>,
 }
 
 impl CompoundStep {
@@ -36,6 +37,7 @@ impl CompoundStep {
     pub(crate) fn new() -> Self {
         Self {
             controls: Vec::new(),
+            max_line_length: None,
         }
     }
 
@@ -67,6 +69,11 @@ impl CompoundStep {
             Control::Select(control) => control,
             _ => panic!(),
         }
+    }
+
+    /// Set this step's maximum total line length.
+    pub fn set_max_line_length(&mut self, max_length: u8) {
+        self.max_line_length = Some(max_length);
     }
 }
 
