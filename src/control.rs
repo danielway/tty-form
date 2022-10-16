@@ -97,7 +97,7 @@ impl TextInput {
 /// ```
 pub struct SelectInput {
     prompt: String,
-    options: Vec<String>,
+    options: Vec<SelectInputOption>,
 }
 
 impl SelectInput {
@@ -115,12 +115,35 @@ impl SelectInput {
     }
 
     /// Add an option to this input's list.
-    pub fn add_option(&mut self, option: String) {
+    pub fn add_option(&mut self, option: SelectInputOption) {
         self.options.push(option);
     }
 
     /// Set this input's options.
-    pub fn set_options(&mut self, options: Vec<String>) {
+    pub fn set_options(&mut self, options: Vec<SelectInputOption>) {
         self.options = options;
+    }
+}
+
+/// A option for an option selection input.
+pub struct SelectInputOption {
+    value: String,
+    description: String,
+}
+
+impl SelectInputOption {
+    /// Create a new option with the specified value and description.
+    pub fn new(value: String, description: String) -> Self {
+        Self { value, description }
+    }
+
+    /// This option's value.
+    pub fn value(&self) -> &str {
+        &self.value
+    }
+
+    /// This option's descriptive text.
+    pub fn description(&self) -> &str {
+        &self.description
     }
 }
