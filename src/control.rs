@@ -60,15 +60,22 @@ impl StaticText {
 /// input.set_force_lowercase(true);
 /// ```
 pub struct TextInput {
+    prompt: String,
     force_lowercase: bool,
 }
 
 impl TextInput {
-    /// Create a new, default text input.
+    /// Create a new, default text input with an empty prompt.
     pub(crate) fn new() -> Self {
         Self {
+            prompt: String::new(),
             force_lowercase: false,
         }
+    }
+
+    /// Update this input's prompt text.
+    pub fn set_prompt(&mut self, prompt: &str) {
+        self.prompt = prompt.to_string();
     }
 
     /// Specify whether this input should force its value to be lowercase.
@@ -89,15 +96,22 @@ impl TextInput {
 /// input.set_force_lowercase(true);
 /// ```
 pub struct SelectInput {
+    prompt: String,
     options: Vec<String>,
 }
 
 impl SelectInput {
-    /// Create a new option input with no items.
+    /// Create a new option input with no items or prompt.
     pub(crate) fn new() -> Self {
         Self {
+            prompt: String::new(),
             options: Vec::new(),
         }
+    }
+
+    /// Update this input's prompt text.
+    pub fn set_prompt(&mut self, prompt: &str) {
+        self.prompt = prompt.to_string();
     }
 
     /// Add an option to this input's list.
