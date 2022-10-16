@@ -13,3 +13,6 @@ termion = "1.5.6"
 unicode-segmentation = "1.9.0"
 tty-interface = "3.0.0"
 tty-text = "1.0.0"
+
+[patch.crates-io]
+tty-interface = { path = "../tty-interface" }
