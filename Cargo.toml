@@ -6,6 +6,7 @@ version = "1.0.0"
 license = "MIT"
 edition = "2021"
 repository = "https://github.com/danielway/tty-text"
+exclude = [".github"]
 
 [dependencies]
 termion = "1.5.6"

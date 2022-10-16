@@ -1,10 +1,4 @@
-extern crate core;
-
-pub mod coordinator;
-pub mod element;
-pub mod form;
-pub mod layout;
-mod result;
-pub mod step;
-
-pub use crate::result::{Error, Result};
+//! # tty-form
+//! 
+//! Provides simple TTY-based user input form capabilities including multi-step forms and complex input types.
+//! 
