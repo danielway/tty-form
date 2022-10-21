@@ -1,15 +1,19 @@
 use crossterm::event::{KeyEvent, KeyCode};
 use tty_interface::{Interface, Position};
 
-use crate::{Control, SelectInput, StaticText, TextInput};
+use crate::{Control, Form};
 
 /// A distinct, vertically-separated phase of the form.
 pub trait Step {
+    fn initialize(&mut self);
+
     /// Render this step at the specified position.
     fn render(&mut self, position: Position, interface: &mut Interface);
     
     /// Handle the specified input event, optionally returning an instruction for the form.
     fn handle_input(&mut self, event: KeyEvent) -> Option<InputResult>;
+
+    fn add_to_form(self, form: &mut Form);
 }
 
 pub enum InputResult {
@@ -33,7 +37,7 @@ pub enum InputResult {
 /// input.set_force_lowercase(true);
 /// ```
 pub struct CompoundStep {
-    controls: Vec<Control>,
+    controls: Vec<Box<dyn Control>>,
     max_line_length: Option<u8>,
 
     active_control: usize,
@@ -51,33 +55,8 @@ impl CompoundStep {
     }
 
     /// Append the specified control to this step.
-    pub fn add_control(&mut self, control: Control) -> &mut Control {
+    pub fn add_control(&mut self, control: Box<dyn Control>) {
         self.controls.push(control);
-        self.controls.last_mut().unwrap()
-    }
-
-    /// Append and return a new static text control.
-    pub fn add_static_text(&mut self) -> &mut StaticText {
-        match self.add_control(Control::Static(StaticText::new())) {
-            Control::Static(control) => control,
-            _ => panic!(),
-        }
-    }
-
-    /// Append and return a new text input control.
-    pub fn add_text_input(&mut self) -> &mut TextInput {
-        match self.add_control(Control::Text(TextInput::new())) {
-            Control::Text(control) => control,
-            _ => panic!(),
-        }
-    }
-
-    /// Append and return a new option selection input control.
-    pub fn add_select_input(&mut self) -> &mut SelectInput {
-        match self.add_control(Control::Select(SelectInput::new())) {
-            Control::Select(control) => control,
-            _ => panic!(),
-        }
     }
 
     /// Set this step's maximum total line length.
@@ -87,6 +66,16 @@ impl CompoundStep {
 }
 
 impl Step for CompoundStep {
+    fn initialize(&mut self) {
+        loop {
+            if self.controls[self.active_control].is_focusable() {
+                break
+            }
+            
+            self.active_control += 1;
+        }
+    }
+    
     fn render(&mut self, position: Position, interface: &mut Interface) {
         interface.set(position, &format!("CompoundStep: on control {} of {}", self.active_control + 1, self.controls.len()));
     }
@@ -113,6 +102,10 @@ impl Step for CompoundStep {
 
         None
     }
+
+    fn add_to_form(self, form: &mut Form) {
+        form.add_step(Box::new(self));
+    }
 }
 
 /// A multi-line text input step.
@@ -126,13 +119,15 @@ impl Step for CompoundStep {
 /// step.set_max_line_length(100);
 /// ```
 pub struct TextBlockStep {
+    prompt: String,
     max_line_length: Option<u8>,
 }
 
 impl TextBlockStep {
     /// Create a new, default text block step.
-    pub fn new() -> Self {
+    pub fn new(prompt: &str) -> Self {
         Self {
+            prompt: prompt.to_string(),
             max_line_length: None,
         }
     }
@@ -144,6 +139,8 @@ impl TextBlockStep {
 }
 
 impl Step for TextBlockStep {
+    fn initialize(&mut self) {}
+
     fn render(&mut self, position: Position, interface: &mut Interface) {
         interface.set(position, "TextBlockStep");
     }
@@ -160,5 +157,9 @@ impl Step for TextBlockStep {
             // TODO: forwarding input to individual controls
             _ => None,
         }
+    }
+
+    fn add_to_form(self, form: &mut Form) {
+        form.add_step(Box::new(self));
     }
 }

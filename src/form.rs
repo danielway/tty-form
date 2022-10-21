@@ -56,7 +56,10 @@ impl Form {
 
     /// Execute the provided form and return its WYSIWYG result.
     pub fn execute(mut self, interface: &mut Interface) -> Result<String> {
-        // Perform an initial render
+        for step in &mut self.steps {
+            step.initialize();
+        }
+
         self.render_form(interface);
         interface.apply()?;
 

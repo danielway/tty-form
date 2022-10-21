@@ -1,13 +1,16 @@
+use crossterm::event::{KeyEvent, KeyCode};
 use tty_interface::Style;
 
+use crate::CompoundStep;
+
 /// An element of a CompoundStep which may be a focusable input.
-pub enum Control {
-    /// Static, unfocusable display text.
-    Static(StaticText),
-    /// A text input.
-    Text(TextInput),
-    /// An option selection input.
-    Select(SelectInput),
+pub trait Control {
+    fn is_focusable(&self) -> bool;
+    fn handle_input(&mut self, key_event: KeyEvent);
+    fn get_help(&self) -> Option<String>;
+    fn get_text(&self) -> String;
+    fn get_drawer(&self) -> Option<Vec<String>>;
+    fn add_to_step(self, step: &mut CompoundStep);
 }
 
 /// Static, unfocusable display text. May be formatted.
@@ -28,11 +31,16 @@ pub struct StaticText {
     style: Option<Style>,
 }
 
+impl Default for StaticText {
+    fn default() -> Self {
+        Self::new("")
+    }
+}
+
 impl StaticText {
-    /// Create a new, blank, unstyled text control.
-    pub(crate) fn new() -> Self {
+    pub fn new(text: &str) -> Self {
         Self {
-            text: String::new(),
+            text: text.to_string(),
             style: None,
         }
     }
@@ -45,6 +53,30 @@ impl StaticText {
     /// Set the optional style for this control.
     pub fn set_style(&mut self, style: Style) {
         self.style = Some(style);
+    }
+}
+
+impl Control for StaticText {
+    fn is_focusable(&self) -> bool {
+        false
+    }
+
+    fn handle_input(&mut self, _key_event: KeyEvent) {}
+
+    fn get_help(&self) -> Option<String> {
+        None
+    }
+
+    fn get_text(&self) -> String {
+        self.text.clone()
+    }
+
+    fn get_drawer(&self) -> Option<Vec<String>> {
+        None
+    }
+
+    fn add_to_step(self, step: &mut CompoundStep) {
+        step.add_control(Box::new(self));
     }
 }
 
@@ -61,14 +93,21 @@ impl StaticText {
 /// ```
 pub struct TextInput {
     prompt: String,
+    value: String,
     force_lowercase: bool,
 }
 
+impl Default for TextInput {
+    fn default() -> Self {
+        Self::new("")
+    }
+}
+
 impl TextInput {
-    /// Create a new, default text input with an empty prompt.
-    pub(crate) fn new() -> Self {
+    pub fn new(prompt: &str) -> Self {
         Self {
-            prompt: String::new(),
+            prompt: prompt.to_string(),
+            value: String::new(),
             force_lowercase: false,
         }
     }
@@ -81,6 +120,35 @@ impl TextInput {
     /// Specify whether this input should force its value to be lowercase.
     pub fn set_force_lowercase(&mut self, force: bool) {
         self.force_lowercase = force;
+    }
+}
+
+impl Control for TextInput {
+    fn is_focusable(&self) -> bool {
+        true
+    }
+
+    fn handle_input(&mut self, key_event: KeyEvent) {
+        match key_event.code {
+            KeyCode::Char(ch) => self.value.push(ch),
+            _ => {},
+        }
+    }
+
+    fn get_help(&self) -> Option<String> {
+        Some(self.prompt.clone())
+    }
+
+    fn get_text(&self) -> String {
+        self.value.clone()
+    }
+
+    fn get_drawer(&self) -> Option<Vec<String>> {
+        None
+    }
+
+    fn add_to_step(self, step: &mut CompoundStep) {
+        step.add_control(Box::new(self))
     }
 }
 
@@ -98,14 +166,21 @@ impl TextInput {
 pub struct SelectInput {
     prompt: String,
     options: Vec<SelectInputOption>,
+    selected_option: usize,
+}
+
+impl Default for SelectInput {
+    fn default() -> Self {
+        Self::new("", Vec::new())
+    }
 }
 
 impl SelectInput {
-    /// Create a new option input with no items or prompt.
-    pub(crate) fn new() -> Self {
+    pub fn new(prompt: &str, options: Vec<(&str, &str)>) -> Self {
         Self {
-            prompt: String::new(),
-            options: Vec::new(),
+            prompt: prompt.to_string(),
+            options: options.iter().map(|(value, description)| SelectInputOption::new(value, description)).collect(),
+            selected_option: 0,
         }
     }
 
@@ -125,6 +200,54 @@ impl SelectInput {
     }
 }
 
+impl Control for SelectInput {
+    fn is_focusable(&self) -> bool {
+        true
+    }
+
+    fn handle_input(&mut self, key_event: KeyEvent) {
+        match key_event.code {
+            KeyCode::Up => {
+                if self.selected_option == 0 {
+                    self.selected_option = self.options.len() - 1;
+                } else {
+                    self.selected_option -= 1;
+                }
+            }
+            KeyCode::Down => {
+                if self.selected_option + 1 == self.options.len() {
+                    self.selected_option = 0;
+                } else {
+                    self.selected_option += 1;
+                }
+            }
+            _ => {},
+        }
+    }
+
+    fn get_help(&self) -> Option<String> {
+        Some(self.prompt.clone())
+    }
+
+    fn get_text(&self) -> String {
+        self.options[self.selected_option].value.clone()
+    }
+
+    fn get_drawer(&self) -> Option<Vec<String>> {
+        let mut items = Vec::new();
+
+        for option in &self.options {
+            items.push(format!("{} - {}", option.value, option.description));
+        }
+
+        Some(items)
+    }
+
+    fn add_to_step(self, step: &mut CompoundStep) {
+        step.add_control(Box::new(self))
+    }
+}
+
 /// A option for an option selection input.
 pub struct SelectInputOption {
     value: String,
@@ -133,8 +256,11 @@ pub struct SelectInputOption {
 
 impl SelectInputOption {
     /// Create a new option with the specified value and description.
-    pub fn new(value: String, description: String) -> Self {
-        Self { value, description }
+    pub fn new(value: &str, description: &str) -> Self {
+        Self {
+            value: value.to_string(),
+            description: description.to_string(),
+        }
     }
 
     /// This option's value.
