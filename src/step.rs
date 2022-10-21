@@ -1,15 +1,20 @@
-use tty_interface::Style;
+use crossterm::event::{KeyEvent, KeyCode};
+use tty_interface::{Interface, Position};
 
 use crate::{Control, SelectInput, StaticText, TextInput};
 
 /// A distinct, vertically-separated phase of the form.
-pub enum Step {
-    /// A multi-control single-line input step.
-    Compound(CompoundStep),
-    /// A multi-line text block input step.
-    TextBlock(TextBlockStep),
-    /// An unfocusable, vertically-separated text description in the form.
-    Description(DescriptionStep),
+pub trait Step {
+    /// Render this step at the specified position.
+    fn render(&mut self, position: Position, interface: &mut Interface);
+    
+    /// Handle the specified input event, optionally returning an instruction for the form.
+    fn handle_input(&mut self, event: KeyEvent) -> Option<InputResult>;
+}
+
+pub enum InputResult {
+    AdvanceForm,
+    RetreatForm,
 }
 
 /// A single-line step which controls multple controls including static and input elements.
@@ -30,14 +35,18 @@ pub enum Step {
 pub struct CompoundStep {
     controls: Vec<Control>,
     max_line_length: Option<u8>,
+
+    active_control: usize,
 }
 
 impl CompoundStep {
     /// Create a new compound step with no controls.
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             controls: Vec::new(),
             max_line_length: None,
+
+            active_control: 0,
         }
     }
 
@@ -77,6 +86,35 @@ impl CompoundStep {
     }
 }
 
+impl Step for CompoundStep {
+    fn render(&mut self, position: Position, interface: &mut Interface) {
+        interface.set(position, &format!("CompoundStep: on control {} of {}", self.active_control + 1, self.controls.len()));
+    }
+
+    fn handle_input(&mut self, event: KeyEvent) -> Option<InputResult> {
+        match (event.modifiers, event.code) {
+            (_, KeyCode::Enter) => {
+                if self.active_control + 1 == self.controls.len() {
+                    return Some(InputResult::AdvanceForm);
+                } else {
+                    self.active_control += 1;
+                }
+            }
+            (_, KeyCode::Esc) => {
+                if self.active_control == 0 {
+                    return Some(InputResult::RetreatForm);
+                } else {
+                    self.active_control -= 1;
+                }
+            }
+            // TODO: forwarding input to individual controls
+            _ => {},
+        }
+
+        None
+    }
+}
+
 /// A multi-line text input step.
 ///
 /// # Examples
@@ -93,7 +131,7 @@ pub struct TextBlockStep {
 
 impl TextBlockStep {
     /// Create a new, default text block step.
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             max_line_length: None,
         }
@@ -105,38 +143,22 @@ impl TextBlockStep {
     }
 }
 
-/// An unfocusable, vertically-separated text description in the form.
-///
-/// # Examples
-/// ```
-/// use tty_form::Form;
-/// use tty_interface::{Style, Color};
-///
-/// let mut form = Form::default();
-/// let mut step = form.add_description_step();
-/// step.set_text("Here's a description of this phase of the form.");
-/// step.set_style(Style::default().set_foreground(Color::Red));
-/// ```
-pub struct DescriptionStep {
-    text: String,
-    style: Option<Style>,
-}
+impl Step for TextBlockStep {
+    fn render(&mut self, position: Position, interface: &mut Interface) {
+        interface.set(position, "TextBlockStep");
+    }
 
-impl DescriptionStep {
-    pub(crate) fn new() -> Self {
-        Self {
-            text: String::new(),
-            style: None,
+    fn handle_input(&mut self, event: KeyEvent) -> Option<InputResult> {
+        match (event.modifiers, event.code) {
+            (_, KeyCode::Enter) => {
+                // TODO: advance iff there's already a blank line above the cursor
+                Some(InputResult::AdvanceForm)
+            }
+            (_, KeyCode::Esc) => {
+                Some(InputResult::RetreatForm)
+            }
+            // TODO: forwarding input to individual controls
+            _ => None,
         }
-    }
-
-    /// Set this description's text.
-    pub fn set_text(&mut self, text: &str) {
-        self.text = text.to_string();
-    }
-
-    /// Set this description's optional styling.
-    pub fn set_style(&mut self, style: Style) {
-        self.style = Some(style);
     }
 }

@@ -7,7 +7,7 @@ mod form;
 pub use form::Form;
 
 mod step;
-pub use step::{CompoundStep, Step, TextBlockStep};
+pub use step::{Step, CompoundStep, TextBlockStep};
 
 mod control;
 pub use control::{Control, SelectInput, StaticText, TextInput};

@@ -2,14 +2,14 @@
 description = "Provides generic terminal form capabilities."
 authors = ["Daniel Way <contact@danieldway.com>"]
 name = "tty-form"
-version = "1.0.0"
+version = "2.0.0-beta.0"
 license = "MIT"
 edition = "2021"
 repository = "https://github.com/danielway/tty-text"
 exclude = [".github"]
 
 [dependencies]
-termion = "1.5.6"
+crossterm = "0.25.0"
 unicode-segmentation = "1.9.0"
-tty-interface = "4.0.0-beta.0"
+tty-interface = "4.0.0-beta.1"
 tty-text = "1.0.0"
