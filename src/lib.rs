@@ -7,10 +7,15 @@ mod form;
 pub use form::Form;
 
 mod step;
-pub use step::{Step, CompoundStep, TextBlockStep};
+pub use step::{CompoundStep, Step, TextBlockStep};
 
 mod control;
-pub use control::{Control, StaticText, TextInput, SelectInput, SelectInputOption};
+pub use control::{Control, SelectInput, SelectInputOption, StaticText, TextInput};
+
+mod device;
+pub use device::{InputDevice, StdinDevice};
 
 mod result;
 pub use result::{Error, Result};
+
+pub mod test;

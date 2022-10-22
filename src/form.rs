@@ -1,27 +1,29 @@
-use crossterm::event::{read, Event, KeyCode, KeyModifiers};
-use tty_interface::{Interface, Position, pos};
+use crossterm::event::{Event, KeyCode, KeyModifiers};
+use tty_interface::{pos, Interface, Position};
 
-use crate::{Result, Step, step::InputResult};
+use crate::{step::InputResult, InputDevice, Result, Step};
 
 /// A TTY-based form with multiple steps and inputs.
 ///
 /// # Examples
 /// ```
-/// use tty_form::Form;
+/// # use tty_interface::{Interface, test::VirtualDevice};
+/// # use tty_form::{Error, test::VirtualInputDevice};
+/// # let mut device = VirtualDevice::new();
+/// # let mut interface = Interface::new(&mut device)?;
+/// # let mut stdin = VirtualInputDevice;
+/// use tty_form::{Form, Step, CompoundStep, TextBlockStep, Control, TextInput};
 ///
 /// let mut form = Form::new();
 ///
-/// let mut name_step = form.add_compound_step();
-/// let mut prompt_text = name_step.add_static_text();
-/// prompt_text.set_text("Enter name:");
-/// name_step.add_text_input();
+/// let mut name_step = CompoundStep::new();
+/// TextInput::new("Enter a name:", false).add_to_step(&mut name_step);
+/// name_step.add_to_form(&mut form);
 ///
-/// let mut description_step = form.add_description_step();
-/// description_step.set_text("Enter information about this person:");
+/// TextBlockStep::new("Enter a description of this person:").add_to_form(&mut form);
 ///
-/// form.add_text_block_step();
-///
-/// let submission = form.execute();
+/// let submission = form.execute(&mut interface, &mut stdin)?;
+/// # Ok::<(), Error>(())
 /// ```
 pub struct Form {
     steps: Vec<Box<dyn Step>>,
@@ -34,6 +36,7 @@ pub struct Form {
 }
 
 impl Default for Form {
+    /// Create a new, default terminal form.
     fn default() -> Self {
         Self {
             steps: Vec::new(),
@@ -55,7 +58,11 @@ impl Form {
     }
 
     /// Execute the provided form and return its WYSIWYG result.
-    pub fn execute(mut self, interface: &mut Interface) -> Result<String> {
+    pub fn execute<D: InputDevice>(
+        mut self,
+        interface: &mut Interface,
+        input_device: &mut D,
+    ) -> Result<String> {
         for step in &mut self.steps {
             step.initialize();
         }
@@ -66,8 +73,10 @@ impl Form {
         loop {
             interface.set_cursor(None);
 
-            if let Event::Key(key_event) = read()? {
-                if (KeyModifiers::CONTROL, KeyCode::Char('c')) == (key_event.modifiers, key_event.code) {
+            if let Event::Key(key_event) = input_device.read()? {
+                if (KeyModifiers::CONTROL, KeyCode::Char('c'))
+                    == (key_event.modifiers, key_event.code)
+                {
                     break;
                 }
 
@@ -78,7 +87,7 @@ impl Form {
                                 break;
                             }
                         }
-                        InputResult::RetreatForm =>  {
+                        InputResult::RetreatForm => {
                             if self.retreat() {
                                 break;
                             }
@@ -94,28 +103,31 @@ impl Form {
         Ok(String::new())
     }
 
+    /// Advance the form to its next step. Returns whether we've finished the form.
     fn advance(&mut self) -> bool {
         let is_last_step = self.active_step + 1 == self.steps.len();
         if !is_last_step {
             self.active_step += 1;
-            
+
             if self.active_step > self.max_step {
                 self.max_step = self.active_step;
             }
         }
-        
+
         is_last_step
     }
 
+    /// Retreat the form to its previous step. Returns whether we're at the first step.
     fn retreat(&mut self) -> bool {
         let is_first_step = self.active_step == 0;
         if !is_first_step {
             self.active_step -= 1;
         }
-        
+
         is_first_step
     }
 
+    /// Re-render the form's updated state.
     fn render_form(&mut self, interface: &mut Interface) {
         let mut line = 0;
         for (step_index, step) in self.steps.iter_mut().enumerate() {
@@ -123,7 +135,7 @@ impl Form {
                 break;
             }
 
-            step.render(pos!(0, line), interface);
+            step.render(pos!(0, line), interface, step_index == self.active_step);
             line += 1;
         }
     }

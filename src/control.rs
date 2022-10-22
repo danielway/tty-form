@@ -1,15 +1,27 @@
-use crossterm::event::{KeyEvent, KeyCode};
+use crossterm::event::{KeyCode, KeyEvent};
 use tty_interface::Style;
+use tty_text::{Key, Text};
 
 use crate::CompoundStep;
 
-/// An element of a CompoundStep which may be a focusable input.
+/// An element of a [CompoundStep] which may be a focusable input.
 pub trait Control {
+    /// Whether this control is a focusable input.
     fn is_focusable(&self) -> bool;
+
+    /// Updates the control's state from the given input event.
     fn handle_input(&mut self, key_event: KeyEvent);
+
+    /// Get this control's descriptive help text, if available.
     fn get_help(&self) -> Option<String>;
+
+    /// Get this control's rendered result contents.
     fn get_text(&self) -> (String, Option<u16>);
+
+    /// Get this control's drawer contents, if available.
     fn get_drawer(&self) -> Option<Vec<String>>;
+
+    /// Finish configuration and add this control to the specified form step.
     fn add_to_step(self, step: &mut CompoundStep);
 }
 
@@ -17,14 +29,14 @@ pub trait Control {
 ///
 /// # Examples
 /// ```
-/// use tty_form::Form;
+/// use tty_form::{CompoundStep, Control, StaticText};
 /// use tty_interface::Style;
 ///
-/// let mut form = Form::default();
-/// let mut text = form.add_compound_step().add_static_text();
-///
-/// text.set_text("Hello, world!");
+/// let mut text = StaticText::new("Hello, world!");
 /// text.set_style(Style::default().set_bold(true));
+///
+/// let mut step = CompoundStep::new();
+/// text.add_to_step(&mut step);
 /// ```
 pub struct StaticText {
     text: String,
@@ -32,12 +44,14 @@ pub struct StaticText {
 }
 
 impl Default for StaticText {
+    /// Create a default static text control with no contents.
     fn default() -> Self {
         Self::new("")
     }
 }
 
 impl StaticText {
+    /// Create a new static text control with the specified content.
     pub fn new(text: &str) -> Self {
         Self {
             text: text.to_string(),
@@ -84,31 +98,32 @@ impl Control for StaticText {
 ///
 /// # Examples
 /// ```
-/// use tty_form::Form;
+/// use tty_form::{CompoundStep, Control, TextInput};
 ///
-/// let mut form = Form::default();
-/// let mut input = form.add_compound_step().add_text_input();
-///
-/// input.set_force_lowercase(true);
+/// let mut step = CompoundStep::new();
+/// TextInput::new("Enter your name:", false)
+///     .add_to_step(&mut step);
 /// ```
 pub struct TextInput {
     prompt: String,
-    value: String,
+    text: Text,
     force_lowercase: bool,
 }
 
 impl Default for TextInput {
+    /// Create a default text input with no prompt which allows mixed cases.
     fn default() -> Self {
-        Self::new("")
+        Self::new("", false)
     }
 }
 
 impl TextInput {
-    pub fn new(prompt: &str) -> Self {
+    /// Create a new text input control with the specified prompt and casing-rules.
+    pub fn new(prompt: &str, force_lowercase: bool) -> Self {
         Self {
             prompt: prompt.to_string(),
-            value: String::new(),
-            force_lowercase: false,
+            text: Text::new(false),
+            force_lowercase,
         }
     }
 
@@ -130,8 +145,17 @@ impl Control for TextInput {
 
     fn handle_input(&mut self, key_event: KeyEvent) {
         match key_event.code {
-            KeyCode::Char(ch) => self.value.push(ch),
-            _ => {},
+            KeyCode::Char(mut ch) => {
+                if self.force_lowercase {
+                    ch = ch.to_lowercase().next().unwrap();
+                }
+
+                self.text.handle_input(Key::Char(ch));
+            }
+            KeyCode::Backspace => self.text.handle_input(Key::Backspace),
+            KeyCode::Left => self.text.handle_input(Key::Left),
+            KeyCode::Right => self.text.handle_input(Key::Right),
+            _ => {}
         }
     }
 
@@ -140,7 +164,7 @@ impl Control for TextInput {
     }
 
     fn get_text(&self) -> (String, Option<u16>) {
-        (self.value.clone(), Some(self.value.len() as u16))
+        (self.text.value(), Some(self.text.cursor().0 as u16))
     }
 
     fn get_drawer(&self) -> Option<Vec<String>> {
@@ -156,12 +180,15 @@ impl Control for TextInput {
 ///
 /// # Examples
 /// ```
-/// use tty_form::Form;
+/// use tty_form::{CompoundStep, Control, SelectInput};
+/// use tty_interface::Style;
 ///
-/// let mut form = Form::default();
-/// let mut input = form.add_compound_step().add_text_input();
-///
-/// input.set_force_lowercase(true);
+/// let mut step = CompoundStep::new();
+/// SelectInput::new("Select favorite food:", vec![
+///     ("Pizza", "A supreme pizza."),
+///     ("Burgers", "A hamburger with cheese."),
+///     ("Fries", "Simple potato french-fries."),
+/// ]).add_to_step(&mut step);
 /// ```
 pub struct SelectInput {
     prompt: String,
@@ -170,16 +197,21 @@ pub struct SelectInput {
 }
 
 impl Default for SelectInput {
+    /// Create a new option-selection input with no options.
     fn default() -> Self {
         Self::new("", Vec::new())
     }
 }
 
 impl SelectInput {
+    /// Create a new option-selection input with the specified prompt and options.
     pub fn new(prompt: &str, options: Vec<(&str, &str)>) -> Self {
         Self {
             prompt: prompt.to_string(),
-            options: options.iter().map(|(value, description)| SelectInputOption::new(value, description)).collect(),
+            options: options
+                .iter()
+                .map(|(value, description)| SelectInputOption::new(value, description))
+                .collect(),
             selected_option: 0,
         }
     }
@@ -221,7 +253,7 @@ impl Control for SelectInput {
                     self.selected_option += 1;
                 }
             }
-            _ => {},
+            _ => {}
         }
     }
 
