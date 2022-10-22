@@ -12,4 +12,4 @@ exclude = [".github"]
 crossterm = "0.25.0"
 unicode-segmentation = "1.9.0"
 tty-interface = "4.0.0-beta.2"
-tty-text = "1.0.0"
+tty-text = "2.0.0-beta.0"
