@@ -29,7 +29,7 @@ fn execute() -> Result<()> {
     StaticText::new("(").add_to_step(&mut commit_summary);
     TextInput::new("Enter the commit's scope.", true).add_to_step(&mut commit_summary);
     StaticText::new("): ").add_to_step(&mut commit_summary);
-    TextInput::new("Enter the commit's description.", false).add_to_step(&mut commit_summary);
+    TextInput::new("Enter the commit's description.", true).add_to_step(&mut commit_summary);
 
     commit_summary.add_to_form(&mut form);
 

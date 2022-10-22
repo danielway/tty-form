@@ -9,11 +9,17 @@ pub trait Step {
     /// Perform any post-configuration initialization actions for this step.
     fn initialize(&mut self);
 
-    /// Render this step at the specified position.
-    fn render(&mut self, position: Position, interface: &mut Interface, is_focused: bool);
+    /// Render this step at the specified position and return the height of the rendered content.
+    fn render(&mut self, position: Position, interface: &mut Interface, is_focused: bool) -> u16;
 
     /// Handle the specified input event, optionally returning an instruction for the form.
     fn handle_input(&mut self, event: KeyEvent) -> Option<InputResult>;
+
+    /// Retrieve this step's current help text.
+    fn get_help_text(&self) -> String;
+
+    /// Retrieve this step's current drawer contents, if applicable.
+    fn get_drawer(&self) -> Option<Vec<String>>;
 
     /// Complete configuration and add this step to the form.
     fn add_to_form(self, form: &mut Form);
@@ -114,7 +120,7 @@ impl Step for CompoundStep {
         }
     }
 
-    fn render(&mut self, mut position: Position, interface: &mut Interface, is_focused: bool) {
+    fn render(&mut self, mut position: Position, interface: &mut Interface, is_focused: bool) -> u16 {
         interface.clear_line(position.y());
 
         let mut cursor_position = None;
@@ -134,6 +140,8 @@ impl Step for CompoundStep {
         if is_focused {
             interface.set_cursor(cursor_position);
         }
+
+        1
     }
 
     fn handle_input(&mut self, key_event: KeyEvent) -> Option<InputResult> {
@@ -152,6 +160,14 @@ impl Step for CompoundStep {
         }
 
         None
+    }
+
+    fn get_help_text(&self) -> String {
+        self.controls[self.active_control].get_help().unwrap_or(String::new())
+    }
+
+    fn get_drawer(&self) -> Option<Vec<String>> {
+        self.controls[self.active_control].get_drawer()
     }
 
     fn add_to_form(self, form: &mut Form) {
@@ -209,18 +225,19 @@ impl TextBlockStep {
 impl Step for TextBlockStep {
     fn initialize(&mut self) {}
 
-    fn render(&mut self, position: Position, interface: &mut Interface, is_focused: bool) {
-        interface.set(position, &self.prompt);
-
-        for (line_index, line) in self.text.lines().iter().enumerate() {
-            interface.set(pos!(0, position.y() + line_index as u16 + 1), line);
+    fn render(&mut self, position: Position, interface: &mut Interface, is_focused: bool) -> u16 {
+        let lines = self.text.lines();
+        for (line_index, line) in lines.iter().enumerate() {
+            interface.set(pos!(0, position.y() + line_index as u16), line);
         }
 
         if is_focused {
             let cursor = self.text.cursor();
             let (x, y) = (cursor.0 as u16, cursor.1 as u16);
-            interface.set_cursor(Some(pos!(x, y + position.y() + 1)));
+            interface.set_cursor(Some(pos!(x, y + position.y())));
         }
+
+        lines.len() as u16
     }
 
     fn handle_input(&mut self, event: KeyEvent) -> Option<InputResult> {
@@ -254,6 +271,14 @@ impl Step for TextBlockStep {
             _ => {}
         };
 
+        None
+    }
+
+    fn get_help_text(&self) -> String {
+        self.prompt.to_string()
+    }
+
+    fn get_drawer(&self) -> Option<Vec<String>> {
         None
     }
 

@@ -33,6 +33,9 @@ pub struct Form {
 
     /// The furthest step the user has reached so far.
     max_step: usize,
+
+    /// The last render's height.
+    last_height: u16,
 }
 
 impl Default for Form {
@@ -42,6 +45,7 @@ impl Default for Form {
             steps: Vec::new(),
             active_step: 0,
             max_step: 0,
+            last_height: 0,
         }
     }
 }
@@ -135,14 +139,33 @@ impl Form {
 
     /// Re-render the form's updated state.
     fn render_form(&mut self, interface: &mut Interface) {
-        let mut line = 0;
+        for line in 0..self.last_height {
+            interface.clear_line(line);
+        }
+
+        let mut drawer = None;
+        let mut line = 1;
         for (step_index, step) in self.steps.iter_mut().enumerate() {
             if step_index > self.max_step {
                 break;
             }
 
-            step.render(pos!(0, line), interface, step_index == self.active_step);
-            line += 1;
+            let step_height = step.render(pos!(0, line), interface, step_index == self.active_step);
+            line += step_height;
+            
+            if step_index == self.active_step {
+                interface.set(pos!(0, 0), &step.get_help_text());
+                drawer = step.get_drawer();
+            }
         }
+
+        if let Some(drawer) = drawer {
+            for item in drawer {
+                interface.set(pos!(0, line), &item);
+                line += 1;
+            }
+        }
+
+        self.last_height = line;
     }
 }
