@@ -100,7 +100,13 @@ impl Form {
             interface.apply()?;
         }
 
-        Ok(String::new())
+        let mut result = String::new();
+
+        for step in self.steps {
+            result.push_str(&step.get_result());
+        }
+
+        Ok(result)
     }
 
     /// Advance the form to its next step. Returns whether we've finished the form.

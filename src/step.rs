@@ -17,6 +17,9 @@ pub trait Step {
 
     /// Complete configuration and add this step to the form.
     fn add_to_form(self, form: &mut Form);
+
+    /// Retrieves this step's final WYSIWYG result.
+    fn get_result(&self) -> String;
 }
 
 /// After processing an input event, an action may be returned to the form from the step.
@@ -154,6 +157,19 @@ impl Step for CompoundStep {
     fn add_to_form(self, form: &mut Form) {
         form.add_step(Box::new(self));
     }
+
+    fn get_result(&self) -> String {
+        let mut result = String::new();
+
+        for control in &self.controls {
+            let (text, _) = control.get_text();
+            result.push_str(&text);
+        }
+
+        result.push('\n');
+
+        result
+    }
 }
 
 /// A multi-line text input step.
@@ -243,5 +259,11 @@ impl Step for TextBlockStep {
 
     fn add_to_form(self, form: &mut Form) {
         form.add_step(Box::new(self));
+    }
+
+    fn get_result(&self) -> String {
+        let mut result = self.text.value();
+        result.push('\n');
+        result
     }
 }
