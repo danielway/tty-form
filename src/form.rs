@@ -64,6 +64,8 @@ impl Form {
         interface.apply()?;
 
         loop {
+            interface.set_cursor(None);
+
             if let Event::Key(key_event) = read()? {
                 if (KeyModifiers::CONTROL, KeyCode::Char('c')) == (key_event.modifiers, key_event.code) {
                     break;
@@ -96,6 +98,10 @@ impl Form {
         let is_last_step = self.active_step + 1 == self.steps.len();
         if !is_last_step {
             self.active_step += 1;
+            
+            if self.active_step > self.max_step {
+                self.max_step = self.active_step;
+            }
         }
         
         is_last_step
@@ -112,7 +118,11 @@ impl Form {
 
     fn render_form(&mut self, interface: &mut Interface) {
         let mut line = 0;
-        for step in &mut self.steps {
+        for (step_index, step) in self.steps.iter_mut().enumerate() {
+            if step_index > self.max_step {
+                break;
+            }
+
             step.render(pos!(0, line), interface);
             line += 1;
         }

@@ -8,7 +8,7 @@ pub trait Control {
     fn is_focusable(&self) -> bool;
     fn handle_input(&mut self, key_event: KeyEvent);
     fn get_help(&self) -> Option<String>;
-    fn get_text(&self) -> String;
+    fn get_text(&self) -> (String, Option<u16>);
     fn get_drawer(&self) -> Option<Vec<String>>;
     fn add_to_step(self, step: &mut CompoundStep);
 }
@@ -67,8 +67,8 @@ impl Control for StaticText {
         None
     }
 
-    fn get_text(&self) -> String {
-        self.text.clone()
+    fn get_text(&self) -> (String, Option<u16>) {
+        (self.text.clone(), None)
     }
 
     fn get_drawer(&self) -> Option<Vec<String>> {
@@ -139,8 +139,8 @@ impl Control for TextInput {
         Some(self.prompt.clone())
     }
 
-    fn get_text(&self) -> String {
-        self.value.clone()
+    fn get_text(&self) -> (String, Option<u16>) {
+        (self.value.clone(), Some(self.value.len() as u16))
     }
 
     fn get_drawer(&self) -> Option<Vec<String>> {
@@ -229,8 +229,8 @@ impl Control for SelectInput {
         Some(self.prompt.clone())
     }
 
-    fn get_text(&self) -> String {
-        self.options[self.selected_option].value.clone()
+    fn get_text(&self) -> (String, Option<u16>) {
+        (self.options[self.selected_option].value.clone(), Some(0))
     }
 
     fn get_drawer(&self) -> Option<Vec<String>> {

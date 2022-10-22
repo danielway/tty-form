@@ -1,5 +1,5 @@
 use crossterm::event::{KeyEvent, KeyCode};
-use tty_interface::{Interface, Position};
+use tty_interface::{Interface, Position, pos};
 
 use crate::{Control, Form};
 
@@ -63,41 +63,80 @@ impl CompoundStep {
     pub fn set_max_line_length(&mut self, max_length: u8) {
         self.max_line_length = Some(max_length);
     }
+
+    fn advance_control(&mut self) -> bool {
+        loop {
+            if self.active_control + 1 >= self.controls.len() {
+                return true;
+            }
+            
+            self.active_control += 1;
+
+            if self.controls[self.active_control].is_focusable() {
+                break
+            }
+        }
+
+        false
+    }
+
+    fn retreat_control(&mut self) -> bool {
+        loop {
+            if self.active_control == 0 {
+                return true;
+            }
+            
+            self.active_control -= 1;
+
+            if self.controls[self.active_control].is_focusable() {
+                break
+            }
+        }
+
+        false
+    }
 }
 
 impl Step for CompoundStep {
     fn initialize(&mut self) {
-        loop {
-            if self.controls[self.active_control].is_focusable() {
-                break
-            }
-            
-            self.active_control += 1;
+        if !self.controls[0].is_focusable() {
+            self.advance_control();
         }
     }
     
-    fn render(&mut self, position: Position, interface: &mut Interface) {
-        interface.set(position, &format!("CompoundStep: on control {} of {}", self.active_control + 1, self.controls.len()));
+    fn render(&mut self, mut position: Position, interface: &mut Interface) {
+        let mut cursor_position = None;
+
+        for (control_index, control) in self.controls.iter().enumerate() {
+            let (text, cursor_offset) = control.get_text();
+            
+            if control_index == self.active_control {
+                if let Some(offset) = cursor_offset {
+                    cursor_position = Some(pos!(position.x() + offset, position.y()));
+                }
+            }
+
+            interface.set(position, &text);
+            
+            position = pos!(position.x() + text.len() as u16, position.y());
+        }
+
+        interface.set_cursor(cursor_position);
     }
 
-    fn handle_input(&mut self, event: KeyEvent) -> Option<InputResult> {
-        match (event.modifiers, event.code) {
+    fn handle_input(&mut self, key_event: KeyEvent) -> Option<InputResult> {
+        match (key_event.modifiers, key_event.code) {
             (_, KeyCode::Enter) => {
-                if self.active_control + 1 == self.controls.len() {
+                if self.advance_control() {
                     return Some(InputResult::AdvanceForm);
-                } else {
-                    self.active_control += 1;
                 }
             }
             (_, KeyCode::Esc) => {
-                if self.active_control == 0 {
+                if self.retreat_control() {
                     return Some(InputResult::RetreatForm);
-                } else {
-                    self.active_control -= 1;
                 }
             }
-            // TODO: forwarding input to individual controls
-            _ => {},
+            _ => self.controls[self.active_control].handle_input(key_event),
         }
 
         None
