@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use tty_interface::{pos, Interface, Position};
 use tty_text::{Key, Text};
 
-use crate::{Control, Form};
+use crate::{dependency::DependencyState, Control, Form};
 
 /// A distinct, vertically-separated phase of the form.
 pub trait Step {
@@ -10,10 +10,20 @@ pub trait Step {
     fn initialize(&mut self);
 
     /// Render this step at the specified position and return the height of the rendered content.
-    fn render(&mut self, position: Position, interface: &mut Interface, is_focused: bool) -> u16;
+    fn render(
+        &mut self,
+        position: Position,
+        interface: &mut Interface,
+        is_focused: bool,
+        dependency_state: &DependencyState,
+    ) -> u16;
 
     /// Handle the specified input event, optionally returning an instruction for the form.
-    fn handle_input(&mut self, event: KeyEvent) -> Option<InputResult>;
+    fn handle_input(
+        &mut self,
+        event: KeyEvent,
+        dependency_state: &mut DependencyState,
+    ) -> Option<InputResult>;
 
     /// Retrieve this step's current help text.
     fn get_help_text(&self) -> String;
@@ -25,7 +35,7 @@ pub trait Step {
     fn add_to_form(self, form: &mut Form);
 
     /// Retrieves this step's final WYSIWYG result.
-    fn get_result(&self) -> String;
+    fn get_result(&self, dependency_state: &DependencyState) -> String;
 }
 
 /// After processing an input event, an action may be returned to the form from the step.
@@ -120,12 +130,18 @@ impl Step for CompoundStep {
         }
     }
 
-    fn render(&mut self, mut position: Position, interface: &mut Interface, is_focused: bool) -> u16 {
+    fn render(
+        &mut self,
+        mut position: Position,
+        interface: &mut Interface,
+        is_focused: bool,
+        dependency_state: &DependencyState,
+    ) -> u16 {
         interface.clear_line(position.y());
 
         let mut cursor_position = None;
         for (control_index, control) in self.controls.iter().enumerate() {
-            let (text, cursor_offset) = control.get_text();
+            let (text, cursor_offset) = control.get_text(dependency_state);
             interface.set(position, &text);
 
             if control_index == self.active_control {
@@ -144,7 +160,11 @@ impl Step for CompoundStep {
         1
     }
 
-    fn handle_input(&mut self, key_event: KeyEvent) -> Option<InputResult> {
+    fn handle_input(
+        &mut self,
+        key_event: KeyEvent,
+        dependency_state: &mut DependencyState,
+    ) -> Option<InputResult> {
         match (key_event.modifiers, key_event.code) {
             (_, KeyCode::Enter) => {
                 if self.advance_control() {
@@ -156,14 +176,16 @@ impl Step for CompoundStep {
                     return Some(InputResult::RetreatForm);
                 }
             }
-            _ => self.controls[self.active_control].handle_input(key_event),
+            _ => self.controls[self.active_control].handle_input(key_event, dependency_state),
         }
 
         None
     }
 
     fn get_help_text(&self) -> String {
-        self.controls[self.active_control].get_help().unwrap_or(String::new())
+        self.controls[self.active_control]
+            .get_help()
+            .unwrap_or(String::new())
     }
 
     fn get_drawer(&self) -> Option<Vec<String>> {
@@ -174,11 +196,11 @@ impl Step for CompoundStep {
         form.add_step(Box::new(self));
     }
 
-    fn get_result(&self) -> String {
+    fn get_result(&self, dependency_state: &DependencyState) -> String {
         let mut result = String::new();
 
         for control in &self.controls {
-            let (text, _) = control.get_text();
+            let (text, _) = control.get_text(dependency_state);
             result.push_str(&text);
         }
 
@@ -225,7 +247,13 @@ impl TextBlockStep {
 impl Step for TextBlockStep {
     fn initialize(&mut self) {}
 
-    fn render(&mut self, position: Position, interface: &mut Interface, is_focused: bool) -> u16 {
+    fn render(
+        &mut self,
+        position: Position,
+        interface: &mut Interface,
+        is_focused: bool,
+        _dependency_state: &DependencyState,
+    ) -> u16 {
         let lines = self.text.lines();
         for (line_index, line) in lines.iter().enumerate() {
             interface.set(pos!(0, position.y() + line_index as u16), line);
@@ -240,7 +268,11 @@ impl Step for TextBlockStep {
         lines.len() as u16
     }
 
-    fn handle_input(&mut self, event: KeyEvent) -> Option<InputResult> {
+    fn handle_input(
+        &mut self,
+        event: KeyEvent,
+        _dependency_state: &mut DependencyState,
+    ) -> Option<InputResult> {
         if event.code == KeyCode::Enter {
             let mut last_two_empty = self.text.lines().iter().count() > 2;
             if last_two_empty {
@@ -286,7 +318,7 @@ impl Step for TextBlockStep {
         form.add_step(Box::new(self));
     }
 
-    fn get_result(&self) -> String {
+    fn get_result(&self, _dependency_state: &DependencyState) -> String {
         let mut result = self.text.value();
         result.push('\n');
         result

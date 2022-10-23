@@ -1,7 +1,7 @@
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use tty_interface::{pos, Interface, Position};
 
-use crate::{step::InputResult, InputDevice, Result, Step};
+use crate::{dependency::DependencyState, step::InputResult, InputDevice, Result, Step};
 
 /// A TTY-based form with multiple steps and inputs.
 ///
@@ -71,7 +71,9 @@ impl Form {
             step.initialize();
         }
 
-        self.render_form(interface);
+        let mut dependency_state = DependencyState::new();
+
+        self.render_form(interface, &dependency_state);
         interface.apply()?;
 
         loop {
@@ -84,7 +86,9 @@ impl Form {
                     break;
                 }
 
-                if let Some(action) = self.steps[self.active_step].handle_input(key_event) {
+                if let Some(action) =
+                    self.steps[self.active_step].handle_input(key_event, &mut dependency_state)
+                {
                     match action {
                         InputResult::AdvanceForm => {
                             if self.advance() {
@@ -100,14 +104,14 @@ impl Form {
                 }
             }
 
-            self.render_form(interface);
+            self.render_form(interface, &dependency_state);
             interface.apply()?;
         }
 
         let mut result = String::new();
 
         for step in self.steps {
-            result.push_str(&step.get_result());
+            result.push_str(&step.get_result(&dependency_state));
         }
 
         Ok(result)
@@ -138,7 +142,7 @@ impl Form {
     }
 
     /// Re-render the form's updated state.
-    fn render_form(&mut self, interface: &mut Interface) {
+    fn render_form(&mut self, interface: &mut Interface, dependency_state: &DependencyState) {
         for line in 0..self.last_height {
             interface.clear_line(line);
         }
@@ -150,9 +154,14 @@ impl Form {
                 break;
             }
 
-            let step_height = step.render(pos!(0, line), interface, step_index == self.active_step);
+            let step_height = step.render(
+                pos!(0, line),
+                interface,
+                step_index == self.active_step,
+                dependency_state,
+            );
             line += step_height;
-            
+
             if step_index == self.active_step {
                 interface.set(pos!(0, 0), &step.get_help_text());
                 drawer = step.get_drawer();

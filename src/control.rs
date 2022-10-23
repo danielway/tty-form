@@ -1,8 +1,10 @@
+use std::collections::HashMap;
+
 use crossterm::event::{KeyCode, KeyEvent};
 use tty_interface::Style;
 use tty_text::{Key, Text};
 
-use crate::CompoundStep;
+use crate::{Action, CompoundStep, DependencyId, DependencyState, Evaluation};
 
 /// An element of a [CompoundStep] which may be a focusable input.
 pub trait Control {
@@ -10,13 +12,13 @@ pub trait Control {
     fn is_focusable(&self) -> bool;
 
     /// Updates the control's state from the given input event.
-    fn handle_input(&mut self, key_event: KeyEvent);
+    fn handle_input(&mut self, key_event: KeyEvent, dependency_state: &mut DependencyState);
 
     /// Get this control's descriptive help text, if available.
     fn get_help(&self) -> Option<String>;
 
     /// Get this control's rendered result contents.
-    fn get_text(&self) -> (String, Option<u16>);
+    fn get_text(&self, dependency_state: &DependencyState) -> (String, Option<u16>);
 
     /// Get this control's drawer contents, if available.
     fn get_drawer(&self) -> Option<Vec<String>>;
@@ -41,6 +43,7 @@ pub trait Control {
 pub struct StaticText {
     text: String,
     style: Option<Style>,
+    dependencies: HashMap<DependencyId, Action>,
 }
 
 impl Default for StaticText {
@@ -56,6 +59,7 @@ impl StaticText {
         Self {
             text: text.to_string(),
             style: None,
+            dependencies: HashMap::new(),
         }
     }
 
@@ -68,6 +72,10 @@ impl StaticText {
     pub fn set_style(&mut self, style: Style) {
         self.style = Some(style);
     }
+
+    pub fn add_dependency(&mut self, id: DependencyId, action: Action) {
+        self.dependencies.insert(id, action);
+    }
 }
 
 impl Control for StaticText {
@@ -75,14 +83,28 @@ impl Control for StaticText {
         false
     }
 
-    fn handle_input(&mut self, _key_event: KeyEvent) {}
+    fn handle_input(&mut self, _key_event: KeyEvent, _dependency_state: &mut DependencyState) {}
 
     fn get_help(&self) -> Option<String> {
         None
     }
 
-    fn get_text(&self) -> (String, Option<u16>) {
-        (self.text.clone(), None)
+    fn get_text(&self, dependency_state: &DependencyState) -> (String, Option<u16>) {
+        let mut should_show = true;
+        for (id, action) in &self.dependencies {
+            if dependency_state.get_evaluation(&id) {
+                match action {
+                    Action::Hide => should_show = false,
+                    Action::Show => {} // TODO
+                }
+            }
+        }
+
+        if should_show {
+            (self.text.clone(), None)
+        } else {
+            (String::new(), None)
+        }
     }
 
     fn get_drawer(&self) -> Option<Vec<String>> {
@@ -108,6 +130,7 @@ pub struct TextInput {
     prompt: String,
     text: Text,
     force_lowercase: bool,
+    dependency_sources: HashMap<DependencyId, Evaluation>,
 }
 
 impl Default for TextInput {
@@ -124,6 +147,7 @@ impl TextInput {
             prompt: prompt.to_string(),
             text: Text::new(false),
             force_lowercase,
+            dependency_sources: HashMap::new(),
         }
     }
 
@@ -136,6 +160,12 @@ impl TextInput {
     pub fn set_force_lowercase(&mut self, force: bool) {
         self.force_lowercase = force;
     }
+
+    pub fn create_dependency_source(&mut self, evaluation: Evaluation) -> DependencyId {
+        let id = DependencyId::new();
+        self.dependency_sources.insert(id, evaluation);
+        id
+    }
 }
 
 impl Control for TextInput {
@@ -143,7 +173,7 @@ impl Control for TextInput {
         true
     }
 
-    fn handle_input(&mut self, key_event: KeyEvent) {
+    fn handle_input(&mut self, key_event: KeyEvent, dependency_state: &mut DependencyState) {
         match key_event.code {
             KeyCode::Char(mut ch) => {
                 if self.force_lowercase {
@@ -156,6 +186,16 @@ impl Control for TextInput {
             KeyCode::Left => self.text.handle_input(Key::Left),
             KeyCode::Right => self.text.handle_input(Key::Right),
             _ => {}
+        };
+
+        for (id, evaluation) in &self.dependency_sources {
+            dependency_state.update_evaluation(
+                id,
+                match evaluation {
+                    Evaluation::IsEmpty => self.text.value().is_empty(),
+                    Evaluation::Equals(value) => self.text.value().eq(value),
+                },
+            );
         }
     }
 
@@ -163,7 +203,7 @@ impl Control for TextInput {
         Some(self.prompt.clone())
     }
 
-    fn get_text(&self) -> (String, Option<u16>) {
+    fn get_text(&self, _dependency_state: &DependencyState) -> (String, Option<u16>) {
         (self.text.value(), Some(self.text.cursor().0 as u16))
     }
 
@@ -237,7 +277,7 @@ impl Control for SelectInput {
         true
     }
 
-    fn handle_input(&mut self, key_event: KeyEvent) {
+    fn handle_input(&mut self, key_event: KeyEvent, _dependency_state: &mut DependencyState) {
         match key_event.code {
             KeyCode::Up => {
                 if self.selected_option == 0 {
@@ -261,7 +301,7 @@ impl Control for SelectInput {
         Some(self.prompt.clone())
     }
 
-    fn get_text(&self) -> (String, Option<u16>) {
+    fn get_text(&self, _dependency_state: &DependencyState) -> (String, Option<u16>) {
         (self.options[self.selected_option].value.clone(), Some(0))
     }
 
