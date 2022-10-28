@@ -1,10 +1,10 @@
 use crossterm::event::{KeyCode, KeyEvent};
-use tty_interface::{Color, Style};
+use tty_interface::Style;
 use tty_text::Key;
 
 use crate::{
     drawer_style, help_style, Action, CompoundStep, DependencyId, DrawerContents, Evaluation,
-    Segment, Text,
+    Segment, Text, drawer_selected_style,
 };
 
 /// An element of a [CompoundStep] which may be a focusable input.
@@ -333,7 +333,7 @@ impl Control for SelectInput {
             let mut style = drawer_style();
 
             if option_index == self.selected_option {
-                style = style.set_foreground(Color::DarkBlue);
+                style = drawer_selected_style();
                 text.replace_range(1..2, ">");
             }
 

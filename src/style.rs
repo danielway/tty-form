@@ -8,6 +8,10 @@ pub(crate) fn drawer_style() -> Style {
     Style::default().set_foreground(Color::Blue)
 }
 
+pub(crate) fn drawer_selected_style() -> Style {
+    Style::default().set_foreground(Color::Cyan)
+}
+
 pub(crate) fn error_style() -> Style {
     Style::default().set_foreground(Color::Red)
 }

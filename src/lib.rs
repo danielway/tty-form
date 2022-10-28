@@ -26,7 +26,7 @@ mod result;
 pub use result::{Error, Result};
 
 mod style;
-pub(crate) use style::{drawer_style, error_style, help_style};
+pub(crate) use style::{drawer_style, drawer_selected_style, error_style, help_style};
 
 mod utility;
 pub(crate) use utility::render_segment;
