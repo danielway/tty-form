@@ -39,7 +39,7 @@ impl Text {
 }
 
 pub(crate) fn set_segment_style(segment: &mut Segment, style: Style) {
-    let segment_length = segment.iter().map(|text| text.content().len()).sum();
+    let segment_length = get_segment_length(segment);
     set_segment_subset_style(segment, 0, segment_length, style);
 }
 
@@ -86,6 +86,10 @@ pub(crate) fn set_segment_subset_style(
 
         index += text.content().len();
     }
+}
+
+pub(crate) fn get_segment_length(segment: &Segment) -> usize {
+    segment.iter().map(|text| text.content().len()).sum()
 }
 
 fn split_text(text: &Text, index: usize) -> (Text, Text) {

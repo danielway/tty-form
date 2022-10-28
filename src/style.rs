@@ -7,3 +7,7 @@ pub(crate) fn help_style() -> Style {
 pub(crate) fn drawer_style() -> Style {
     Style::default().set_foreground(Color::Blue)
 }
+
+pub(crate) fn error_style() -> Style {
+    Style::default().set_foreground(Color::Red)
+}

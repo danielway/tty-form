@@ -3,8 +3,9 @@ use tty_interface::{pos, Color, Interface, Position, Style};
 use tty_text::Key;
 
 use crate::{
-    dependency::DependencyState, render_segment, set_segment_style, Action, Control,
-    DrawerContents, Form, Segment, Text,
+    dependency::DependencyState, drawer_style, error_style, get_segment_length, help_style,
+    render_segment, set_segment_style, set_segment_subset_style, Action, Control, DependencyId,
+    DrawerContents, Evaluation, Form, Segment, Text,
 };
 
 /// A distinct, vertically-separated phase of the form.
@@ -185,25 +186,43 @@ impl Step for CompoundStep {
 
             let mut should_hide = false;
             if let Some((id, action)) = control.dependency() {
-                if dependency_state.get_evaluation(&id) {
-                    if action == Action::Hide {
-                        let (step_index, control_index) = dependency_state.get_source(&id);
-                        if step_index == self.index.unwrap() && control_index == self.active_control
-                        {
-                            set_segment_style(
-                                &mut segment,
-                                Style::default().set_foreground(Color::DarkGrey),
-                            );
-                        } else {
-                            should_hide = true;
+                let control_touched = control_index <= self.max_control;
+                let evaluation_result = dependency_state.get_evaluation(&id);
+
+                match action {
+                    Action::Hide => {
+                        if control_touched && evaluation_result {
+                            let (step_index, control_index) = dependency_state.get_source(&id);
+                            let source_active_control = step_index == self.index.unwrap()
+                                && control_index == self.active_control;
+
+                            if source_active_control {
+                                set_segment_style(
+                                    &mut segment,
+                                    Style::default().set_foreground(Color::DarkGrey),
+                                );
+                            } else {
+                                should_hide = true;
+                            }
                         }
                     }
-                } else if action == Action::Show {
-                    should_hide = true;
+                    Action::Show => should_hide = !evaluation_result,
                 }
             }
 
-            if control_index >= self.max_control || !should_hide {
+            if let Some(max_length) = self.max_line_length {
+                let segment_length = get_segment_length(&segment);
+                if position.x() as usize + segment_length > max_length as usize {
+                    set_segment_subset_style(
+                        &mut segment,
+                        max_length as usize - position.x() as usize,
+                        segment_length,
+                        error_style(),
+                    );
+                }
+            }
+
+            if !should_hide {
                 position = render_segment(interface, position, segment);
             }
         }
@@ -235,7 +254,7 @@ impl Step for CompoundStep {
                 let control = &mut self.controls[self.active_control];
 
                 control.update(input);
-                for (id, evaluation) in control.evaluation() {
+                if let Some((id, evaluation)) = control.evaluation() {
                     let value = control.evaluate(&evaluation);
                     dependency_state.update_evaluation(&id, value);
                 }
@@ -383,6 +402,202 @@ impl Step for TextBlockStep {
         let mut result = self.text.value();
         result.push('\n');
         result
+    }
+
+    fn add_to(self, form: &mut Form) {
+        form.add_step(Box::new(self));
+    }
+}
+
+pub struct YesNoStep {
+    prompt: String,
+    prefix: String,
+    omit_if_no: bool,
+    value: bool,
+    evaluation: Option<(DependencyId, Evaluation)>,
+}
+
+impl YesNoStep {
+    pub fn new(prompt: &str, prefix: &str) -> Self {
+        Self {
+            prompt: prompt.to_string(),
+            prefix: prefix.to_string(),
+            omit_if_no: true,
+            value: false,
+            evaluation: None,
+        }
+    }
+
+    pub fn set_omit_if_no(&mut self, omit: bool) {
+        self.omit_if_no = omit;
+    }
+
+    pub fn set_evaluation(&mut self, evaluation: Evaluation) -> DependencyId {
+        let id = DependencyId::new();
+        self.evaluation = Some((id, evaluation));
+        id
+    }
+
+    fn value_as_string(&self) -> &str {
+        if self.value {
+            "Yes"
+        } else {
+            "No"
+        }
+    }
+}
+
+impl Step for YesNoStep {
+    fn initialize(&mut self, _dependency_state: &mut DependencyState, _index: usize) {}
+
+    fn render(
+        &self,
+        interface: &mut Interface,
+        _dependency_state: &DependencyState,
+        position: Position,
+        is_focused: bool,
+    ) -> u16 {
+        if self.value || is_focused || !self.omit_if_no {
+            let style = if is_focused && self.omit_if_no && !self.value {
+                Style::default().set_foreground(Color::DarkGrey)
+            } else {
+                Style::default()
+            };
+
+            interface.set_cursor(Some(position));
+            interface.set_styled(
+                position,
+                &format!("{}: {}", self.prefix, self.value_as_string()),
+                style,
+            );
+
+            return 1;
+        }
+
+        0
+    }
+
+    fn update(
+        &mut self,
+        dependency_state: &mut DependencyState,
+        input: KeyEvent,
+    ) -> Option<InputResult> {
+        match input.code {
+            KeyCode::Up | KeyCode::Down => self.value = !self.value,
+            _ => {}
+        };
+
+        if let Some((id, evaluation)) = &self.evaluation {
+            let value = match evaluation {
+                Evaluation::Equals(value) => value == self.value_as_string(),
+                Evaluation::IsEmpty => false,
+            };
+
+            dependency_state.update_evaluation(&id, value);
+        }
+
+        None
+    }
+
+    fn help(&self) -> Segment {
+        Text::new_styled(self.prompt.to_string(), help_style()).as_segment()
+    }
+
+    fn drawer(&self) -> Option<DrawerContents> {
+        None
+    }
+
+    fn result(&self, _dependency_state: &DependencyState) -> String {
+        format!("{}: {}", self.prefix, self.value_as_string())
+    }
+
+    fn add_to(self, form: &mut Form) {
+        form.add_step(Box::new(self));
+    }
+}
+
+/// A key-value-pair set entry step.
+pub struct KeyValueStep {
+    prompt: String,
+    pairs: Vec<(tty_text::Text, tty_text::Text)>,
+    active_pair: usize,
+    active_field: usize,
+    evaluation: Option<(DependencyId, Evaluation)>,
+}
+
+impl KeyValueStep {
+    pub fn new(prompt: &str) -> Self {
+        Self {
+            prompt: prompt.to_string(),
+            pairs: vec![(tty_text::Text::new(false), tty_text::Text::new(false))],
+            active_pair: 0,
+            active_field: 0,
+            evaluation: None,
+        }
+    }
+
+    pub fn set_evaluation(&mut self, evaluation: Evaluation) -> DependencyId {
+        let id = DependencyId::new();
+        self.evaluation = Some((id, evaluation));
+        id
+    }
+}
+
+impl Step for KeyValueStep {
+    fn initialize(&mut self, _dependency_state: &mut DependencyState, _index: usize) {}
+
+    fn render(
+        &self,
+        interface: &mut Interface,
+        _dependency_state: &DependencyState,
+        mut position: Position,
+        _is_focused: bool,
+    ) -> u16 {
+        for (pair_index, (key, value)) in self.pairs.iter().enumerate() {
+            interface.set(position, &format!("{}: {}", key.value(), value.value()));
+
+            if pair_index == self.active_pair {
+                interface.set_cursor(Some(position));
+            }
+
+            position = pos!(position.x(), position.y() + 1);
+        }
+
+        self.pairs.len() as u16
+    }
+
+    fn update(
+        &mut self,
+        _dependency_state: &mut DependencyState,
+        input: KeyEvent,
+    ) -> Option<InputResult> {
+        let text = if self.active_field == 0 {
+            &mut self.pairs[self.active_pair].0
+        } else {
+            &mut self.pairs[self.active_pair].1
+        };
+
+        match input.code {
+            KeyCode::Char(ch) => text.handle_input(Key::Char(ch)),
+            KeyCode::Backspace => text.handle_input(Key::Backspace),
+            KeyCode::Left => text.handle_input(Key::Left),
+            KeyCode::Right => text.handle_input(Key::Right),
+            _ => {}
+        };
+
+        None
+    }
+
+    fn help(&self) -> Segment {
+        Text::new_styled(self.prompt.to_string(), drawer_style()).as_segment()
+    }
+
+    fn drawer(&self) -> Option<DrawerContents> {
+        None
+    }
+
+    fn result(&self, _dependency_state: &DependencyState) -> String {
+        String::new() // TODO
     }
 
     fn add_to(self, form: &mut Form) {

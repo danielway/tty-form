@@ -7,13 +7,13 @@ mod form;
 pub use form::Form;
 
 mod step;
-pub use step::{CompoundStep, Step, TextBlockStep};
+pub use step::{CompoundStep, KeyValueStep, Step, TextBlockStep, YesNoStep};
 
 mod control;
 pub use control::{Control, SelectInput, SelectInputOption, StaticText, TextInput};
 
 mod text;
-pub(crate) use text::set_segment_style;
+pub(crate) use text::{get_segment_length, set_segment_style, set_segment_subset_style};
 pub use text::{DrawerContents, Segment, Text};
 
 mod dependency;
@@ -26,7 +26,7 @@ mod result;
 pub use result::{Error, Result};
 
 mod style;
-pub(crate) use style::{drawer_style, help_style};
+pub(crate) use style::{drawer_style, error_style, help_style};
 
 mod utility;
 pub(crate) use utility::render_segment;
