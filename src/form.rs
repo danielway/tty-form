@@ -1,7 +1,10 @@
 use crossterm::event::{Event, KeyCode, KeyModifiers};
 use tty_interface::{pos, Interface, Position};
 
-use crate::{dependency::DependencyState, step::InputResult, InputDevice, Result, Step};
+use crate::{
+    dependency::DependencyState, step::InputResult, utility::render_segment, InputDevice, Result,
+    Step,
+};
 
 /// A TTY-based form with multiple steps and inputs.
 ///
@@ -17,10 +20,10 @@ use crate::{dependency::DependencyState, step::InputResult, InputDevice, Result,
 /// let mut form = Form::new();
 ///
 /// let mut name_step = CompoundStep::new();
-/// TextInput::new("Enter a name:", false).add_to_step(&mut name_step);
-/// name_step.add_to_form(&mut form);
+/// TextInput::new("Enter a name:", false).add_to(&mut name_step);
+/// name_step.add_to(&mut form);
 ///
-/// TextBlockStep::new("Enter a description of this person:").add_to_form(&mut form);
+/// TextBlockStep::new("Enter a description of this person:").add_to(&mut form);
 ///
 /// let submission = form.execute(&mut interface, &mut stdin)?;
 /// # Ok::<(), Error>(())
@@ -67,11 +70,11 @@ impl Form {
         interface: &mut Interface,
         input_device: &mut D,
     ) -> Result<String> {
-        for step in &mut self.steps {
-            step.initialize();
-        }
-
         let mut dependency_state = DependencyState::new();
+
+        for (step_index, step) in self.steps.iter_mut().enumerate() {
+            step.initialize(&mut dependency_state, step_index);
+        }
 
         self.render_form(interface, &dependency_state);
         interface.apply()?;
@@ -87,7 +90,7 @@ impl Form {
                 }
 
                 if let Some(action) =
-                    self.steps[self.active_step].handle_input(key_event, &mut dependency_state)
+                    self.steps[self.active_step].update(&mut dependency_state, key_event)
                 {
                     match action {
                         InputResult::AdvanceForm => {
@@ -111,7 +114,7 @@ impl Form {
         let mut result = String::new();
 
         for step in self.steps {
-            result.push_str(&step.get_result(&dependency_state));
+            result.push_str(&step.result(&dependency_state));
         }
 
         Ok(result)
@@ -149,28 +152,29 @@ impl Form {
 
         let mut drawer = None;
         let mut line = 1;
-        for (step_index, step) in self.steps.iter_mut().enumerate() {
+        for (step_index, step) in self.steps.iter().enumerate() {
             if step_index > self.max_step {
                 break;
             }
 
             let step_height = step.render(
-                pos!(0, line),
                 interface,
-                step_index == self.active_step,
                 dependency_state,
+                pos!(0, line),
+                step_index == self.active_step,
             );
+
             line += step_height;
 
             if step_index == self.active_step {
-                interface.set(pos!(0, 0), &step.get_help_text());
-                drawer = step.get_drawer();
+                render_segment(interface, pos!(0, 0), step.help());
+                drawer = step.drawer();
             }
         }
 
         if let Some(drawer) = drawer {
             for item in drawer {
-                interface.set(pos!(0, line), &item);
+                render_segment(interface, pos!(0, line), item);
                 line += 1;
             }
         }

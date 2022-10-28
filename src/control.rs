@@ -1,30 +1,37 @@
-use std::collections::HashMap;
-
 use crossterm::event::{KeyCode, KeyEvent};
 use tty_interface::Style;
-use tty_text::{Key, Text};
+use tty_text::Key;
 
-use crate::{Action, CompoundStep, DependencyId, DependencyState, Evaluation};
+use crate::{Action, CompoundStep, DependencyId, DrawerContents, Evaluation, Segment, Text};
 
 /// An element of a [CompoundStep] which may be a focusable input.
 pub trait Control {
     /// Whether this control is a focusable input.
-    fn is_focusable(&self) -> bool;
+    fn focusable(&self) -> bool;
 
     /// Updates the control's state from the given input event.
-    fn handle_input(&mut self, key_event: KeyEvent, dependency_state: &mut DependencyState);
+    fn update(&mut self, input: KeyEvent);
 
-    /// Get this control's descriptive help text, if available.
-    fn get_help(&self) -> Option<String>;
+    /// This control's descriptive help text, if available.
+    fn help(&self) -> Option<Segment>;
 
-    /// Get this control's rendered result contents.
-    fn get_text(&self, dependency_state: &DependencyState) -> (String, Option<u16>);
+    /// This control's rendered contents and an optional offset for the cursor.
+    fn text(&self) -> (Segment, Option<u16>);
 
-    /// Get this control's drawer contents, if available.
-    fn get_drawer(&self) -> Option<Vec<String>>;
+    /// This control's drawer contents, if available.
+    fn drawer(&self) -> Option<DrawerContents>;
+
+    /// This control's dependency evaluation which other controls may react to.
+    fn evaluation(&self) -> Option<(DependencyId, Evaluation)>;
+
+    /// This control's dependency which it may react to.
+    fn dependency(&self) -> Option<(DependencyId, Action)>;
+
+    /// Perform an evaluation against this control's current state.
+    fn evaluate(&self, evaluation: &Evaluation) -> bool;
 
     /// Finish configuration and add this control to the specified form step.
-    fn add_to_step(self, step: &mut CompoundStep);
+    fn add_to(self, step: &mut CompoundStep);
 }
 
 /// Static, unfocusable display text. May be formatted.
@@ -38,12 +45,12 @@ pub trait Control {
 /// text.set_style(Style::default().set_bold(true));
 ///
 /// let mut step = CompoundStep::new();
-/// text.add_to_step(&mut step);
+/// text.add_to(&mut step);
 /// ```
 pub struct StaticText {
     text: String,
     style: Option<Style>,
-    dependencies: HashMap<DependencyId, Action>,
+    dependency: Option<(DependencyId, Action)>,
 }
 
 impl Default for StaticText {
@@ -59,7 +66,7 @@ impl StaticText {
         Self {
             text: text.to_string(),
             style: None,
-            dependencies: HashMap::new(),
+            dependency: None,
         }
     }
 
@@ -73,45 +80,44 @@ impl StaticText {
         self.style = Some(style);
     }
 
-    pub fn add_dependency(&mut self, id: DependencyId, action: Action) {
-        self.dependencies.insert(id, action);
+    /// Sets a dependency on the specified ID, performing some action if it evaluates true.
+    pub fn set_dependency(&mut self, id: DependencyId, action: Action) {
+        self.dependency = Some((id, action));
     }
 }
 
 impl Control for StaticText {
-    fn is_focusable(&self) -> bool {
+    fn focusable(&self) -> bool {
         false
     }
 
-    fn handle_input(&mut self, _key_event: KeyEvent, _dependency_state: &mut DependencyState) {}
+    fn update(&mut self, _input: KeyEvent) {}
 
-    fn get_help(&self) -> Option<String> {
+    fn help(&self) -> Option<Segment> {
         None
     }
 
-    fn get_text(&self, dependency_state: &DependencyState) -> (String, Option<u16>) {
-        let mut should_show = true;
-        for (id, action) in &self.dependencies {
-            if dependency_state.get_evaluation(&id) {
-                match action {
-                    Action::Hide => should_show = false,
-                    Action::Show => {} // TODO
-                }
-            }
-        }
-
-        if should_show {
-            (self.text.clone(), None)
-        } else {
-            (String::new(), None)
-        }
+    fn text(&self) -> (Segment, Option<u16>) {
+        (Text::new(self.text.clone()).as_segment(), None)
     }
 
-    fn get_drawer(&self) -> Option<Vec<String>> {
+    fn drawer(&self) -> Option<DrawerContents> {
         None
     }
 
-    fn add_to_step(self, step: &mut CompoundStep) {
+    fn evaluation(&self) -> Option<(DependencyId, Evaluation)> {
+        None
+    }
+
+    fn dependency(&self) -> Option<(DependencyId, Action)> {
+        self.dependency.clone()
+    }
+
+    fn evaluate(&self, _evaluation: &Evaluation) -> bool {
+        false
+    }
+
+    fn add_to(self, step: &mut CompoundStep) {
         step.add_control(Box::new(self));
     }
 }
@@ -123,14 +129,13 @@ impl Control for StaticText {
 /// use tty_form::{CompoundStep, Control, TextInput};
 ///
 /// let mut step = CompoundStep::new();
-/// TextInput::new("Enter your name:", false)
-///     .add_to_step(&mut step);
+/// TextInput::new("Enter your name:", false).add_to(&mut step);
 /// ```
 pub struct TextInput {
     prompt: String,
-    text: Text,
+    text: tty_text::Text,
     force_lowercase: bool,
-    dependency_sources: HashMap<DependencyId, Evaluation>,
+    evaluation: Option<(DependencyId, Evaluation)>,
 }
 
 impl Default for TextInput {
@@ -145,9 +150,9 @@ impl TextInput {
     pub fn new(prompt: &str, force_lowercase: bool) -> Self {
         Self {
             prompt: prompt.to_string(),
-            text: Text::new(false),
+            text: tty_text::Text::new(false),
             force_lowercase,
-            dependency_sources: HashMap::new(),
+            evaluation: None,
         }
     }
 
@@ -161,20 +166,21 @@ impl TextInput {
         self.force_lowercase = force;
     }
 
-    pub fn create_dependency_source(&mut self, evaluation: Evaluation) -> DependencyId {
+    /// Sets the dependency evaluation which other form elements can react to.
+    pub fn set_evaluation(&mut self, evaluation: Evaluation) -> DependencyId {
         let id = DependencyId::new();
-        self.dependency_sources.insert(id, evaluation);
+        self.evaluation = Some((id, evaluation));
         id
     }
 }
 
 impl Control for TextInput {
-    fn is_focusable(&self) -> bool {
+    fn focusable(&self) -> bool {
         true
     }
 
-    fn handle_input(&mut self, key_event: KeyEvent, dependency_state: &mut DependencyState) {
-        match key_event.code {
+    fn update(&mut self, input: KeyEvent) {
+        match input.code {
             KeyCode::Char(mut ch) => {
                 if self.force_lowercase {
                     ch = ch.to_lowercase().next().unwrap();
@@ -187,31 +193,39 @@ impl Control for TextInput {
             KeyCode::Right => self.text.handle_input(Key::Right),
             _ => {}
         };
-
-        for (id, evaluation) in &self.dependency_sources {
-            dependency_state.update_evaluation(
-                id,
-                match evaluation {
-                    Evaluation::IsEmpty => self.text.value().is_empty(),
-                    Evaluation::Equals(value) => self.text.value().eq(value),
-                },
-            );
-        }
     }
 
-    fn get_help(&self) -> Option<String> {
-        Some(self.prompt.clone())
+    fn help(&self) -> Option<Segment> {
+        Some(Text::new(self.prompt.clone()).as_segment())
     }
 
-    fn get_text(&self, _dependency_state: &DependencyState) -> (String, Option<u16>) {
-        (self.text.value(), Some(self.text.cursor().0 as u16))
+    fn text(&self) -> (Segment, Option<u16>) {
+        let segment = Text::new(self.text.value()).as_segment();
+        let cursor_column = self.text.cursor().0 as u16;
+
+        (segment, Some(cursor_column))
     }
 
-    fn get_drawer(&self) -> Option<Vec<String>> {
+    fn drawer(&self) -> Option<DrawerContents> {
         None
     }
 
-    fn add_to_step(self, step: &mut CompoundStep) {
+    fn evaluation(&self) -> Option<(DependencyId, Evaluation)> {
+        self.evaluation.clone()
+    }
+
+    fn dependency(&self) -> Option<(DependencyId, Action)> {
+        None
+    }
+
+    fn evaluate(&self, evaluation: &Evaluation) -> bool {
+        match evaluation {
+            Evaluation::Equals(value) => &self.text.value() == value,
+            Evaluation::IsEmpty => self.text.value().is_empty(),
+        }
+    }
+
+    fn add_to(self, step: &mut CompoundStep) {
         step.add_control(Box::new(self))
     }
 }
@@ -228,7 +242,7 @@ impl Control for TextInput {
 ///     ("Pizza", "A supreme pizza."),
 ///     ("Burgers", "A hamburger with cheese."),
 ///     ("Fries", "Simple potato french-fries."),
-/// ]).add_to_step(&mut step);
+/// ]).add_to(&mut step);
 /// ```
 pub struct SelectInput {
     prompt: String,
@@ -273,12 +287,12 @@ impl SelectInput {
 }
 
 impl Control for SelectInput {
-    fn is_focusable(&self) -> bool {
+    fn focusable(&self) -> bool {
         true
     }
 
-    fn handle_input(&mut self, key_event: KeyEvent, _dependency_state: &mut DependencyState) {
-        match key_event.code {
+    fn update(&mut self, input: KeyEvent) {
+        match input.code {
             KeyCode::Up => {
                 if self.selected_option == 0 {
                     self.selected_option = self.options.len() - 1;
@@ -297,25 +311,44 @@ impl Control for SelectInput {
         }
     }
 
-    fn get_help(&self) -> Option<String> {
-        Some(self.prompt.clone())
+    fn help(&self) -> Option<Segment> {
+        Some(Text::new(self.prompt.clone()).as_segment())
     }
 
-    fn get_text(&self, _dependency_state: &DependencyState) -> (String, Option<u16>) {
-        (self.options[self.selected_option].value.clone(), Some(0))
+    fn text(&self) -> (Segment, Option<u16>) {
+        let value = &self.options[self.selected_option].value;
+        let segment = Text::new(value.clone()).as_segment();
+
+        (segment, Some(0))
     }
 
-    fn get_drawer(&self) -> Option<Vec<String>> {
+    fn drawer(&self) -> Option<DrawerContents> {
         let mut items = Vec::new();
 
         for option in &self.options {
-            items.push(format!("{} - {}", option.value, option.description));
+            items
+                .push(Text::new(format!("{} - {}", option.value, option.description)).as_segment());
         }
 
         Some(items)
     }
 
-    fn add_to_step(self, step: &mut CompoundStep) {
+    fn evaluation(&self) -> Option<(DependencyId, Evaluation)> {
+        None
+    }
+
+    fn dependency(&self) -> Option<(DependencyId, Action)> {
+        None
+    }
+
+    fn evaluate(&self, evaluation: &Evaluation) -> bool {
+        match evaluation {
+            Evaluation::Equals(value) => &self.options[self.selected_option].value == value,
+            Evaluation::IsEmpty => false,
+        }
+    }
+
+    fn add_to(self, step: &mut CompoundStep) {
         step.add_control(Box::new(self))
     }
 }

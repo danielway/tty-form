@@ -1,41 +1,44 @@
 use crossterm::event::{KeyCode, KeyEvent};
-use tty_interface::{pos, Interface, Position};
-use tty_text::{Key, Text};
+use tty_interface::{pos, Color, Interface, Position, Style};
+use tty_text::Key;
 
-use crate::{dependency::DependencyState, Control, Form};
+use crate::{
+    dependency::DependencyState, render_segment, set_segment_style, Action, Control,
+    DrawerContents, Form, Segment, Text,
+};
 
 /// A distinct, vertically-separated phase of the form.
 pub trait Step {
     /// Perform any post-configuration initialization actions for this step.
-    fn initialize(&mut self);
+    fn initialize(&mut self, dependency_state: &mut DependencyState, index: usize);
 
     /// Render this step at the specified position and return the height of the rendered content.
     fn render(
-        &mut self,
-        position: Position,
+        &self,
         interface: &mut Interface,
-        is_focused: bool,
         dependency_state: &DependencyState,
+        position: Position,
+        is_focused: bool,
     ) -> u16;
 
     /// Handle the specified input event, optionally returning an instruction for the form.
-    fn handle_input(
+    fn update(
         &mut self,
-        event: KeyEvent,
         dependency_state: &mut DependencyState,
+        input: KeyEvent,
     ) -> Option<InputResult>;
 
     /// Retrieve this step's current help text.
-    fn get_help_text(&self) -> String;
+    fn help(&self) -> Segment;
 
     /// Retrieve this step's current drawer contents, if applicable.
-    fn get_drawer(&self) -> Option<Vec<String>>;
-
-    /// Complete configuration and add this step to the form.
-    fn add_to_form(self, form: &mut Form);
+    fn drawer(&self) -> Option<DrawerContents>;
 
     /// Retrieves this step's final WYSIWYG result.
-    fn get_result(&self, dependency_state: &DependencyState) -> String;
+    fn result(&self, dependency_state: &DependencyState) -> String;
+
+    /// Complete configuration and add this step to the form.
+    fn add_to(self, form: &mut Form);
 }
 
 /// After processing an input event, an action may be returned to the form from the step.
@@ -55,24 +58,27 @@ pub enum InputResult {
 /// let mut form = Form::new();
 ///
 /// let mut step = CompoundStep::new();
-/// StaticText::new("A Form - ").add_to_step(&mut step);
-/// TextInput::new("Enter your name:", false).add_to_step(&mut step);
-/// step.add_to_form(&mut form);
+/// StaticText::new("A Form - ").add_to(&mut step);
+/// TextInput::new("Enter your name:", false).add_to(&mut step);
+/// step.add_to(&mut form);
 /// ```
 pub struct CompoundStep {
+    index: Option<usize>,
     controls: Vec<Box<dyn Control>>,
     max_line_length: Option<u8>,
     active_control: usize,
+    max_control: usize,
 }
 
 impl CompoundStep {
     /// Create a new compound step with no controls.
     pub fn new() -> Self {
         Self {
+            index: None,
             controls: Vec::new(),
             max_line_length: None,
-
             active_control: 0,
+            max_control: 0,
         }
     }
 
@@ -89,19 +95,36 @@ impl CompoundStep {
     /// Advance the step's state to the next control. Returns true if we've reached the end of this
     /// step and the form should advance to the next.
     fn advance_control(&mut self) -> bool {
+        let mut reached_last_control = false;
         loop {
             if self.active_control + 1 >= self.controls.len() {
-                return true;
+                reached_last_control = true;
+                break;
             }
 
             self.active_control += 1;
 
-            if self.controls[self.active_control].is_focusable() {
+            if self.controls[self.active_control].focusable() {
                 break;
             }
         }
 
-        false
+        if self.active_control > self.max_control {
+            self.max_control = self.active_control;
+            loop {
+                if self.max_control + 1 >= self.controls.len() {
+                    break;
+                }
+
+                if !self.controls[self.max_control + 1].focusable() {
+                    self.max_control += 1;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        reached_last_control
     }
 
     /// Retreat the step's state to the previous control. Returns true if we've reached the start
@@ -114,7 +137,7 @@ impl CompoundStep {
 
             self.active_control -= 1;
 
-            if self.controls[self.active_control].is_focusable() {
+            if self.controls[self.active_control].focusable() {
                 break;
             }
         }
@@ -124,25 +147,35 @@ impl CompoundStep {
 }
 
 impl Step for CompoundStep {
-    fn initialize(&mut self) {
-        if !self.controls[0].is_focusable() {
+    fn initialize(&mut self, dependency_state: &mut DependencyState, index: usize) {
+        self.index = Some(index);
+
+        if !self.controls[0].focusable() {
             self.advance_control();
+        }
+
+        for (control_index, control) in self.controls.iter().enumerate() {
+            for (id, evaluation) in control.evaluation() {
+                dependency_state.register_evaluation(&id, index, control_index);
+
+                let value = control.evaluate(&evaluation);
+                dependency_state.update_evaluation(&id, value);
+            }
         }
     }
 
     fn render(
-        &mut self,
-        mut position: Position,
+        &self,
         interface: &mut Interface,
-        is_focused: bool,
         dependency_state: &DependencyState,
+        mut position: Position,
+        is_focused: bool,
     ) -> u16 {
         interface.clear_line(position.y());
 
         let mut cursor_position = None;
         for (control_index, control) in self.controls.iter().enumerate() {
-            let (text, cursor_offset) = control.get_text(dependency_state);
-            interface.set(position, &text);
+            let (mut segment, cursor_offset) = control.text();
 
             if control_index == self.active_control {
                 if let Some(offset) = cursor_offset {
@@ -150,7 +183,32 @@ impl Step for CompoundStep {
                 }
             }
 
-            position = pos!(position.x() + text.len() as u16, position.y());
+            let mut should_hide = false;
+            if let Some((id, action)) = control.dependency() {
+                if dependency_state.get_evaluation(&id) {
+                    if action == Action::Hide {
+                        let (step_index, control_index) = dependency_state.get_source(&id);
+                        if step_index == self.index.unwrap() && control_index == self.active_control
+                        {
+                            let total_length = segment.iter().map(|s| s.content().len()).sum();
+                            set_segment_style(
+                                &mut segment,
+                                0,
+                                total_length,
+                                Style::default().set_foreground(Color::DarkGrey),
+                            );
+                        } else {
+                            should_hide = true;
+                        }
+                    }
+                } else if action == Action::Show {
+                    should_hide = true;
+                }
+            }
+
+            if control_index >= self.max_control || !should_hide {
+                position = render_segment(interface, position, segment);
+            }
         }
 
         if is_focused {
@@ -160,12 +218,12 @@ impl Step for CompoundStep {
         1
     }
 
-    fn handle_input(
+    fn update(
         &mut self,
-        key_event: KeyEvent,
         dependency_state: &mut DependencyState,
+        input: KeyEvent,
     ) -> Option<InputResult> {
-        match (key_event.modifiers, key_event.code) {
+        match (input.modifiers, input.code) {
             (_, KeyCode::Enter) => {
                 if self.advance_control() {
                     return Some(InputResult::AdvanceForm);
@@ -176,37 +234,47 @@ impl Step for CompoundStep {
                     return Some(InputResult::RetreatForm);
                 }
             }
-            _ => self.controls[self.active_control].handle_input(key_event, dependency_state),
+            _ => {
+                let control = &mut self.controls[self.active_control];
+
+                control.update(input);
+                for (id, evaluation) in control.evaluation() {
+                    let value = control.evaluate(&evaluation);
+                    dependency_state.update_evaluation(&id, value);
+                }
+            }
         }
 
         None
     }
 
-    fn get_help_text(&self) -> String {
+    fn help(&self) -> Segment {
         self.controls[self.active_control]
-            .get_help()
-            .unwrap_or(String::new())
+            .help()
+            .unwrap_or(Text::new(String::new()).as_segment())
     }
 
-    fn get_drawer(&self) -> Option<Vec<String>> {
-        self.controls[self.active_control].get_drawer()
+    fn drawer(&self) -> Option<DrawerContents> {
+        self.controls[self.active_control].drawer()
     }
 
-    fn add_to_form(self, form: &mut Form) {
-        form.add_step(Box::new(self));
-    }
-
-    fn get_result(&self, dependency_state: &DependencyState) -> String {
+    fn result(&self, _dependency_state: &DependencyState) -> String {
         let mut result = String::new();
 
         for control in &self.controls {
-            let (text, _) = control.get_text(dependency_state);
-            result.push_str(&text);
+            let (segments, _) = control.text();
+            for text in segments {
+                result.push_str(text.content());
+            }
         }
 
         result.push('\n');
 
         result
+    }
+
+    fn add_to(self, form: &mut Form) {
+        form.add_step(Box::new(self));
     }
 }
 
@@ -220,11 +288,11 @@ impl Step for CompoundStep {
 ///
 /// let mut step = TextBlockStep::new("Enter your story:");
 /// step.set_max_line_length(100);
-/// step.add_to_form(&mut form);
+/// step.add_to(&mut form);
 /// ```
 pub struct TextBlockStep {
     prompt: String,
-    text: Text,
+    text: tty_text::Text,
     max_line_length: Option<u8>,
 }
 
@@ -233,7 +301,7 @@ impl TextBlockStep {
     pub fn new(prompt: &str) -> Self {
         Self {
             prompt: prompt.to_string(),
-            text: Text::new(true),
+            text: tty_text::Text::new(true),
             max_line_length: None,
         }
     }
@@ -245,14 +313,14 @@ impl TextBlockStep {
 }
 
 impl Step for TextBlockStep {
-    fn initialize(&mut self) {}
+    fn initialize(&mut self, _dependency_state: &mut DependencyState, _index: usize) {}
 
     fn render(
-        &mut self,
-        position: Position,
+        &self,
         interface: &mut Interface,
-        is_focused: bool,
         _dependency_state: &DependencyState,
+        position: Position,
+        is_focused: bool,
     ) -> u16 {
         let lines = self.text.lines();
         for (line_index, line) in lines.iter().enumerate() {
@@ -268,12 +336,12 @@ impl Step for TextBlockStep {
         lines.len() as u16
     }
 
-    fn handle_input(
+    fn update(
         &mut self,
-        event: KeyEvent,
         _dependency_state: &mut DependencyState,
+        input: KeyEvent,
     ) -> Option<InputResult> {
-        if event.code == KeyCode::Enter {
+        if input.code == KeyCode::Enter {
             let mut last_two_empty = self.text.lines().iter().count() > 2;
             if last_two_empty {
                 for line in self.text.lines().iter().rev().take(2) {
@@ -288,11 +356,11 @@ impl Step for TextBlockStep {
             }
         }
 
-        if event.code == KeyCode::Esc {
+        if input.code == KeyCode::Esc {
             return Some(InputResult::RetreatForm);
         }
 
-        match event.code {
+        match input.code {
             KeyCode::Enter => self.text.handle_input(Key::Enter),
             KeyCode::Char(ch) => self.text.handle_input(Key::Char(ch)),
             KeyCode::Backspace => self.text.handle_input(Key::Backspace),
@@ -306,21 +374,21 @@ impl Step for TextBlockStep {
         None
     }
 
-    fn get_help_text(&self) -> String {
-        self.prompt.to_string()
+    fn help(&self) -> Segment {
+        Text::new(self.prompt.to_string()).as_segment()
     }
 
-    fn get_drawer(&self) -> Option<Vec<String>> {
+    fn drawer(&self) -> Option<DrawerContents> {
         None
     }
 
-    fn add_to_form(self, form: &mut Form) {
-        form.add_step(Box::new(self));
-    }
-
-    fn get_result(&self, _dependency_state: &DependencyState) -> String {
+    fn result(&self, _dependency_state: &DependencyState) -> String {
         let mut result = self.text.value();
         result.push('\n');
         result
+    }
+
+    fn add_to(self, form: &mut Form) {
+        form.add_step(Box::new(self));
     }
 }

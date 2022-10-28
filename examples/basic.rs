@@ -24,28 +24,28 @@ fn execute() -> Result<()> {
             ("chore", "non-source changes"),
         ],
     )
-    .add_to_step(&mut commit_summary);
+    .add_to(&mut commit_summary);
 
     let mut opening_paren = StaticText::new("(");
     let mut scope_input = TextInput::new("Enter the commit's scope.", true);
 
-    let empty_scope = scope_input.create_dependency_source(Evaluation::IsEmpty);
-    opening_paren.add_dependency(empty_scope, Action::Hide);
+    let empty_scope = scope_input.set_evaluation(Evaluation::IsEmpty);
+    opening_paren.set_dependency(empty_scope, Action::Hide);
 
     let mut closing_paren = StaticText::new(")");
-    closing_paren.add_dependency(empty_scope, Action::Hide);
+    closing_paren.set_dependency(empty_scope, Action::Hide);
 
-    opening_paren.add_to_step(&mut commit_summary);
-    scope_input.add_to_step(&mut commit_summary);
-    closing_paren.add_to_step(&mut commit_summary);
+    opening_paren.add_to(&mut commit_summary);
+    scope_input.add_to(&mut commit_summary);
+    closing_paren.add_to(&mut commit_summary);
 
-    StaticText::new(": ").add_to_step(&mut commit_summary);
+    StaticText::new(": ").add_to(&mut commit_summary);
 
-    TextInput::new("Enter the commit's description.", true).add_to_step(&mut commit_summary);
+    TextInput::new("Enter the commit's description.", true).add_to(&mut commit_summary);
 
-    commit_summary.add_to_form(&mut form);
+    commit_summary.add_to(&mut form);
 
-    TextBlockStep::new("Enter a long-form commit description.").add_to_form(&mut form);
+    TextBlockStep::new("Enter a long-form commit description.").add_to(&mut form);
 
     let mut stdout = stdout();
     let mut stdin = StdinDevice;
