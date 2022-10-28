@@ -1,8 +1,11 @@
 use std::io::stdout;
 
 use tty_form::{
-    Action, CompoundStep, Control, Evaluation, Form, Result, SelectInput, StaticText, StdinDevice,
-    Step, TextBlockStep, TextInput, YesNoStep,
+    control::{selectinput::SelectInput, statictext::StaticText, textinput::TextInput, Control},
+    dependency::{Action, Evaluation},
+    device::StdinDevice,
+    step::{compound::CompoundStep, textblock::TextBlockStep, yesno::YesNoStep, Step},
+    Form, Result,
 };
 use tty_interface::Interface;
 

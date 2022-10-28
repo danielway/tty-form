@@ -1,6 +1,6 @@
 //! A virtual testing device based on the vte/vt100 parser used in functional and documentation tests.
 
-use crate::InputDevice;
+use crate::device::InputDevice;
 
 pub struct VirtualInputDevice;
 

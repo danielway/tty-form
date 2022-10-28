@@ -105,7 +105,7 @@ fn split_text(text: &Text, index: usize) -> (Text, Text) {
 mod tests {
     use tty_interface::{Color, Style};
 
-    use crate::Text;
+    use crate::text::Text;
 
     use super::set_segment_subset_style;
 

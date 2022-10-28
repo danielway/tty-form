@@ -1,6 +1,6 @@
 use tty_interface::{pos, Interface, Position};
 
-use crate::Segment;
+use crate::text::Segment;
 
 /// Renders a segment at the specified position, returning the cursor's position after the render.
 pub(crate) fn render_segment(

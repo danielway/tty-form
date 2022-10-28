@@ -2,8 +2,11 @@ use crossterm::event::{Event, KeyCode, KeyModifiers};
 use tty_interface::{pos, Interface, Position};
 
 use crate::{
-    dependency::DependencyState, step::InputResult, utility::render_segment, InputDevice, Result,
-    Step,
+    dependency::DependencyState,
+    device::InputDevice,
+    step::{InputResult, Step},
+    utility::render_segment,
+    Result,
 };
 
 /// A TTY-based form with multiple steps and inputs.
