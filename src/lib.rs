@@ -25,6 +25,9 @@ pub use device::{InputDevice, StdinDevice};
 mod result;
 pub use result::{Error, Result};
 
+mod style;
+pub(crate) use style::{drawer_style, help_style};
+
 mod utility;
 pub(crate) use utility::render_segment;
 

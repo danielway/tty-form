@@ -1,8 +1,11 @@
 use crossterm::event::{KeyCode, KeyEvent};
-use tty_interface::Style;
+use tty_interface::{Color, Style};
 use tty_text::Key;
 
-use crate::{Action, CompoundStep, DependencyId, DrawerContents, Evaluation, Segment, Text};
+use crate::{
+    drawer_style, help_style, Action, CompoundStep, DependencyId, DrawerContents, Evaluation,
+    Segment, Text,
+};
 
 /// An element of a [CompoundStep] which may be a focusable input.
 pub trait Control {
@@ -196,7 +199,7 @@ impl Control for TextInput {
     }
 
     fn help(&self) -> Option<Segment> {
-        Some(Text::new(self.prompt.clone()).as_segment())
+        Some(Text::new_styled(self.prompt.clone(), help_style()).as_segment())
     }
 
     fn text(&self) -> (Segment, Option<u16>) {
@@ -312,7 +315,7 @@ impl Control for SelectInput {
     }
 
     fn help(&self) -> Option<Segment> {
-        Some(Text::new(self.prompt.clone()).as_segment())
+        Some(Text::new_styled(self.prompt.clone(), help_style()).as_segment())
     }
 
     fn text(&self) -> (Segment, Option<u16>) {
@@ -325,9 +328,16 @@ impl Control for SelectInput {
     fn drawer(&self) -> Option<DrawerContents> {
         let mut items = Vec::new();
 
-        for option in &self.options {
-            items
-                .push(Text::new(format!("{} - {}", option.value, option.description)).as_segment());
+        for (option_index, option) in self.options.iter().enumerate() {
+            let mut text = format!("   {} - {}", option.value, option.description);
+            let mut style = drawer_style();
+
+            if option_index == self.selected_option {
+                style = style.set_foreground(Color::DarkBlue);
+                text.replace_range(1..2, ">");
+            }
+
+            items.push(Text::new_styled(text, style).as_segment());
         }
 
         Some(items)

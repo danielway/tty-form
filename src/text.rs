@@ -38,8 +38,18 @@ impl Text {
     }
 }
 
+pub(crate) fn set_segment_style(segment: &mut Segment, style: Style) {
+    let segment_length = segment.iter().map(|text| text.content().len()).sum();
+    set_segment_subset_style(segment, 0, segment_length, style);
+}
+
 /// Update a segment's style for some subset of its graphemes.
-pub(crate) fn set_segment_style(segment: &mut Segment, start: usize, end: usize, style: Style) {
+pub(crate) fn set_segment_subset_style(
+    segment: &mut Segment,
+    start: usize,
+    end: usize,
+    style: Style,
+) {
     let mut index = 0;
     let mut i = 0;
     loop {
@@ -78,7 +88,7 @@ pub(crate) fn set_segment_style(segment: &mut Segment, start: usize, end: usize,
     }
 }
 
-pub(crate) fn split_text(text: &Text, index: usize) -> (Text, Text) {
+fn split_text(text: &Text, index: usize) -> (Text, Text) {
     let (prefix, suffix) = text.0.split_at(index);
 
     let first = Text(prefix.to_string(), text.1);
@@ -93,7 +103,7 @@ mod tests {
 
     use crate::Text;
 
-    use super::set_segment_style;
+    use super::set_segment_subset_style;
 
     macro_rules! text {
         ($content: expr) => {
@@ -122,7 +132,7 @@ mod tests {
             text!("TEST4"),
         ];
 
-        set_segment_style(&mut segment, 0, 20, style!(Color::Green));
+        set_segment_subset_style(&mut segment, 0, 20, style!(Color::Green));
 
         assert_eq!(
             vec![
@@ -144,7 +154,7 @@ mod tests {
             text!("TEST4"),
         ];
 
-        set_segment_style(&mut segment, 5, 15, style!(Color::Green));
+        set_segment_subset_style(&mut segment, 5, 15, style!(Color::Green));
 
         assert_eq!(
             vec![
@@ -166,8 +176,8 @@ mod tests {
             text!("TEST4"),
         ];
 
-        set_segment_style(&mut segment, 3, 7, style!(Color::Green));
-        set_segment_style(&mut segment, 11, 14, style!(Color::Magenta));
+        set_segment_subset_style(&mut segment, 3, 7, style!(Color::Green));
+        set_segment_subset_style(&mut segment, 11, 14, style!(Color::Magenta));
 
         assert_eq!(
             vec![

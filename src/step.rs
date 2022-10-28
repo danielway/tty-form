@@ -190,11 +190,8 @@ impl Step for CompoundStep {
                         let (step_index, control_index) = dependency_state.get_source(&id);
                         if step_index == self.index.unwrap() && control_index == self.active_control
                         {
-                            let total_length = segment.iter().map(|s| s.content().len()).sum();
                             set_segment_style(
                                 &mut segment,
-                                0,
-                                total_length,
                                 Style::default().set_foreground(Color::DarkGrey),
                             );
                         } else {
