@@ -1,17 +1,21 @@
 use tty_interface::{Color, Style};
 
 pub(crate) fn help_style() -> Style {
-    Style::default().set_foreground(Color::DarkYellow)
+    Color::DarkYellow.as_style()
 }
 
 pub(crate) fn drawer_style() -> Style {
-    Style::default().set_foreground(Color::Blue)
+    Color::Blue.as_style()
 }
 
 pub(crate) fn drawer_selected_style() -> Style {
-    Style::default().set_foreground(Color::Cyan)
+    Color::Cyan.as_style()
 }
 
 pub(crate) fn error_style() -> Style {
-    Style::default().set_foreground(Color::Red)
+    Color::Red.as_style()
+}
+
+pub(crate) fn muted_style() -> Style {
+    Color::DarkGrey.as_style()
 }

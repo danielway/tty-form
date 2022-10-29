@@ -3,18 +3,21 @@ use tty_text::Key;
 
 use crate::{
     dependency::{Action, DependencyId, Evaluation},
-    step::compound::CompoundStep,
+    step::CompoundStep,
     style::help_style,
     text::{DrawerContents, Segment, Text},
 };
 
 use super::Control;
 
-/// A text field input.
+/// A single-line text field input. May be used as an evaluation for dependent form elements.
 ///
 /// # Examples
 /// ```
-/// use tty_form::{CompoundStep, Control, TextInput};
+/// use tty_form::{
+///     step::CompoundStep,
+///     control::{Control, TextInput},
+/// };
 ///
 /// let mut step = CompoundStep::new();
 /// TextInput::new("Enter your name:", false).add_to(&mut step);
@@ -24,13 +27,6 @@ pub struct TextInput {
     text: tty_text::Text,
     force_lowercase: bool,
     evaluation: Option<(DependencyId, Evaluation)>,
-}
-
-impl Default for TextInput {
-    /// Create a default text input with no prompt which allows mixed cases.
-    fn default() -> Self {
-        Self::new("", false)
-    }
 }
 
 impl TextInput {

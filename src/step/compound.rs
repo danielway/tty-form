@@ -1,10 +1,10 @@
 use crossterm::event::{KeyCode, KeyEvent};
-use tty_interface::{pos, Color, Interface, Position, Style};
+use tty_interface::{pos, Interface, Position};
 
 use crate::{
     control::Control,
     dependency::{Action, DependencyState},
-    style::error_style,
+    style::{error_style, muted_style},
     text::{
         get_segment_length, set_segment_style, set_segment_subset_style, DrawerContents, Segment,
         Text,
@@ -19,19 +19,23 @@ use super::{InputResult, Step};
 ///
 /// # Examples
 /// ```
-/// use tty_form::{Form, Step, CompoundStep, Control, StaticText, TextInput};
+/// use tty_form::{
+///     Form,
+///     step::{Step, CompoundStep},
+///     control::{Control, StaticText, TextInput},
+/// };
 ///
 /// let mut form = Form::new();
 ///
 /// let mut step = CompoundStep::new();
-/// StaticText::new("A Form - ").add_to(&mut step);
+/// StaticText::new("Welcome, ").add_to(&mut step);
 /// TextInput::new("Enter your name:", false).add_to(&mut step);
 /// step.add_to(&mut form);
 /// ```
 pub struct CompoundStep {
     index: Option<usize>,
     controls: Vec<Box<dyn Control>>,
-    max_line_length: Option<u8>,
+    max_line_length: Option<u16>,
     active_control: usize,
     max_control: usize,
 }
@@ -54,7 +58,7 @@ impl CompoundStep {
     }
 
     /// Set this step's maximum total line length.
-    pub fn set_max_line_length(&mut self, max_length: u8) {
+    pub fn set_max_line_length(&mut self, max_length: u16) {
         self.max_line_length = Some(max_length);
     }
 
@@ -75,6 +79,7 @@ impl CompoundStep {
             }
         }
 
+        // Advance the max_control past unfocusable controls
         if self.active_control > self.max_control {
             self.max_control = self.active_control;
             loop {
@@ -116,10 +121,12 @@ impl Step for CompoundStep {
     fn initialize(&mut self, dependency_state: &mut DependencyState, index: usize) {
         self.index = Some(index);
 
+        // Advance to the first focusable control, since the first might be a static element
         if !self.controls[0].focusable() {
             self.advance_control();
         }
 
+        // Register any evaluations in state for this step
         for (control_index, control) in self.controls.iter().enumerate() {
             for (id, evaluation) in control.evaluation() {
                 dependency_state.register_evaluation(&id, index, control_index);
@@ -143,12 +150,14 @@ impl Step for CompoundStep {
         for (control_index, control) in self.controls.iter().enumerate() {
             let (mut segment, cursor_offset) = control.text();
 
+            // If this is the focused control, let it drive the overall cursor position
             if control_index == self.active_control {
                 if let Some(offset) = cursor_offset {
                     cursor_position = Some(pos!(position.x() + offset, position.y()));
                 }
             }
 
+            // Resolve this control's dependency and update rendering accordingly
             let mut should_hide = false;
             if let Some((id, action)) = control.dependency() {
                 let control_touched = control_index <= self.max_control;
@@ -157,15 +166,14 @@ impl Step for CompoundStep {
                 match action {
                     Action::Hide => {
                         if control_touched && evaluation_result {
+                            // Determine if the control's dependency source is focused
                             let (step_index, control_index) = dependency_state.get_source(&id);
-                            let source_active_control = step_index == self.index.unwrap()
+                            let source_is_focused = step_index == self.index.unwrap()
                                 && control_index == self.active_control;
 
-                            if source_active_control {
-                                set_segment_style(
-                                    &mut segment,
-                                    Style::default().set_foreground(Color::DarkGrey),
-                                );
+                            // Either render this control muted or hide it, depending on focus
+                            if source_is_focused {
+                                set_segment_style(&mut segment, muted_style());
                             } else {
                                 should_hide = true;
                             }
@@ -175,13 +183,15 @@ impl Step for CompoundStep {
                 }
             }
 
+            // If this step is too-long, render the tail as an error
             if let Some(max_length) = self.max_line_length {
-                let segment_length = get_segment_length(&segment);
-                if position.x() as usize + segment_length > max_length as usize {
+                let segment_length = get_segment_length(&segment) as u16;
+                if position.x() + segment_length > max_length {
+                    let error_starts_at = max_length - position.x();
                     set_segment_subset_style(
                         &mut segment,
-                        max_length as usize - position.x() as usize,
-                        segment_length,
+                        error_starts_at.into(),
+                        segment_length.into(),
                         error_style(),
                     );
                 }
@@ -204,21 +214,22 @@ impl Step for CompoundStep {
         dependency_state: &mut DependencyState,
         input: KeyEvent,
     ) -> Option<InputResult> {
-        match (input.modifiers, input.code) {
-            (_, KeyCode::Enter) => {
+        match input.code {
+            KeyCode::Enter | KeyCode::Tab => {
                 if self.advance_control() {
                     return Some(InputResult::AdvanceForm);
                 }
             }
-            (_, KeyCode::Esc) => {
+            KeyCode::Esc | KeyCode::BackTab => {
                 if self.retreat_control() {
                     return Some(InputResult::RetreatForm);
                 }
             }
             _ => {
                 let control = &mut self.controls[self.active_control];
-
                 control.update(input);
+
+                // If this control has an evaluation, update its dependency state
                 if let Some((id, evaluation)) = control.evaluation() {
                     let value = control.evaluate(&evaluation);
                     dependency_state.update_evaluation(&id, value);
@@ -244,9 +255,9 @@ impl Step for CompoundStep {
 
         for control in &self.controls {
             let (segments, _) = control.text();
-            for text in segments {
-                result.push_str(text.content());
-            }
+            segments
+                .iter()
+                .for_each(|text| result.push_str(text.content()));
         }
 
         result.push('\n');

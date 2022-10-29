@@ -2,7 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 
 use crate::{
     dependency::{Action, DependencyId, Evaluation},
-    step::compound::CompoundStep,
+    step::CompoundStep,
     style::{drawer_selected_style, drawer_style, help_style},
     text::{DrawerContents, Segment, Text},
 };
@@ -13,8 +13,12 @@ use super::Control;
 ///
 /// # Examples
 /// ```
-/// use tty_form::{CompoundStep, Control, SelectInput};
 /// use tty_interface::Style;
+///
+/// use tty_form::{
+///     step::CompoundStep,
+///     control::{Control, SelectInput},
+/// };
 ///
 /// let mut step = CompoundStep::new();
 /// SelectInput::new("Select favorite food:", vec![
@@ -27,13 +31,6 @@ pub struct SelectInput {
     prompt: String,
     options: Vec<SelectInputOption>,
     selected_option: usize,
-}
-
-impl Default for SelectInput {
-    /// Create a new option-selection input with no options.
-    fn default() -> Self {
-        Self::new("", Vec::new())
-    }
 }
 
 impl SelectInput {
@@ -62,6 +59,11 @@ impl SelectInput {
     /// Set this input's options.
     pub fn set_options(&mut self, options: Vec<SelectInputOption>) {
         self.options = options;
+    }
+
+    /// The currently-selected option's value.
+    fn selected_option_value(&self) -> &str {
+        &self.options[self.selected_option].value
     }
 }
 
@@ -95,8 +97,8 @@ impl Control for SelectInput {
     }
 
     fn text(&self) -> (Segment, Option<u16>) {
-        let value = &self.options[self.selected_option].value;
-        let segment = Text::new(value.clone()).as_segment();
+        let value = self.selected_option_value();
+        let segment = Text::new(value.to_string()).as_segment();
 
         (segment, Some(0))
     }
@@ -129,7 +131,7 @@ impl Control for SelectInput {
 
     fn evaluate(&self, evaluation: &Evaluation) -> bool {
         match evaluation {
-            Evaluation::Equals(value) => &self.options[self.selected_option].value == value,
+            Evaluation::Equals(value) => self.selected_option_value() == value,
             Evaluation::IsEmpty => false,
         }
     }

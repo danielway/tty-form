@@ -7,10 +7,17 @@ use crate::{
     Form,
 };
 
-pub mod compound;
-pub mod keyvalue;
-pub mod textblock;
-pub mod yesno;
+mod compound;
+pub use compound::*;
+
+mod keyvalue;
+pub use keyvalue::*;
+
+mod textblock;
+pub use textblock::*;
+
+mod yesno;
+pub use yesno::*;
 
 /// A distinct, vertically-separated phase of the form.
 pub trait Step {

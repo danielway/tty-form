@@ -1,19 +1,22 @@
 use std::io::stdout;
 
 use tty_form::{
-    control::{selectinput::SelectInput, statictext::StaticText, textinput::TextInput, Control},
+    control::{Control, SelectInput, StaticText, TextInput},
     dependency::{Action, Evaluation},
     device::StdinDevice,
-    step::{compound::CompoundStep, textblock::TextBlockStep, yesno::YesNoStep, Step},
+    step::{CompoundStep, Step, TextBlockStep, YesNoStep},
     Form, Result,
 };
 use tty_interface::Interface;
 
 fn main() {
-    execute().expect("executes basic example");
+    let result = execute().expect("executes basic example");
+    println!("Result:");
+    println!("{}", result);
+    println!("Done.");
 }
 
-fn execute() -> Result<()> {
+fn execute() -> Result<String> {
     let mut form = Form::new();
 
     let mut commit_summary = CompoundStep::new();
@@ -44,7 +47,9 @@ fn execute() -> Result<()> {
 
     let description = TextInput::new("Enter the commit's description.", true);
 
-    let long_description = TextBlockStep::new("Enter a long-form commit description.");
+    let mut long_description = TextBlockStep::new("Enter a long-form commit description.");
+    long_description.set_margins(Some(1), Some(1));
+    long_description.set_max_line_length(100);
 
     let mut breaking_step = YesNoStep::new("Is this commit a breaking change?", "BREAKING CHANGE");
 
@@ -65,9 +70,9 @@ fn execute() -> Result<()> {
     let mut stdin = StdinDevice;
 
     let mut interface = Interface::new(&mut stdout)?;
-    form.execute(&mut interface, &mut stdin)?;
+    let result = form.execute(&mut interface, &mut stdin)?;
 
     interface.exit()?;
 
-    Ok(())
+    Ok(result)
 }

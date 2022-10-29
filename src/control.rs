@@ -2,13 +2,18 @@ use crossterm::event::KeyEvent;
 
 use crate::{
     dependency::{Action, DependencyId, Evaluation},
-    step::compound::CompoundStep,
+    step::CompoundStep,
     text::{DrawerContents, Segment},
 };
 
-pub mod selectinput;
-pub mod statictext;
-pub mod textinput;
+mod selectinput;
+pub use selectinput::*;
+
+mod statictext;
+pub use statictext::*;
+
+mod textinput;
+pub use textinput::*;
 
 /// An element of a [CompoundStep] which may be a focusable input.
 pub trait Control {

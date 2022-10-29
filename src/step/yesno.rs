@@ -1,9 +1,9 @@
 use crossterm::event::{KeyCode, KeyEvent};
-use tty_interface::{Color, Interface, Position, Style};
+use tty_interface::{Interface, Position, Style};
 
 use crate::{
     dependency::{DependencyId, DependencyState, Evaluation},
-    style::help_style,
+    style::{help_style, muted_style},
     text::{DrawerContents, Segment, Text},
     Form,
 };
@@ -60,12 +60,15 @@ impl Step for YesNoStep {
     ) -> u16 {
         if self.value || is_focused || !self.omit_if_no {
             let style = if is_focused && self.omit_if_no && !self.value {
-                Style::default().set_foreground(Color::DarkGrey)
+                muted_style()
             } else {
-                Style::default()
+                Style::new()
             };
 
-            interface.set_cursor(Some(position));
+            if is_focused {
+                interface.set_cursor(Some(position));
+            }
+
             interface.set_styled(
                 position,
                 &format!("{}: {}", self.prefix, self.value_as_string()),
@@ -84,6 +87,8 @@ impl Step for YesNoStep {
         input: KeyEvent,
     ) -> Option<InputResult> {
         match input.code {
+            KeyCode::Enter | KeyCode::Tab => return Some(InputResult::AdvanceForm),
+            KeyCode::Esc => return Some(InputResult::RetreatForm),
             KeyCode::Up | KeyCode::Down => self.value = !self.value,
             _ => {}
         };

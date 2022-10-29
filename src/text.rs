@@ -103,7 +103,7 @@ fn split_text(text: &Text, index: usize) -> (Text, Text) {
 
 #[cfg(test)]
 mod tests {
-    use tty_interface::{Color, Style};
+    use tty_interface::Color;
 
     use crate::text::Text;
 
@@ -115,15 +115,9 @@ mod tests {
         };
     }
 
-    macro_rules! style {
-        ($color: expr) => {
-            Style::default().set_foreground($color)
-        };
-    }
-
     macro_rules! text_styled {
         ($content: expr, $color: expr) => {
-            Text::new_styled($content.to_string(), style!($color))
+            Text::new_styled($content.to_string(), $color.as_style())
         };
     }
 
@@ -136,7 +130,7 @@ mod tests {
             text!("TEST4"),
         ];
 
-        set_segment_subset_style(&mut segment, 0, 20, style!(Color::Green));
+        set_segment_subset_style(&mut segment, 0, 20, Color::Green.as_style());
 
         assert_eq!(
             vec![
@@ -158,7 +152,7 @@ mod tests {
             text!("TEST4"),
         ];
 
-        set_segment_subset_style(&mut segment, 5, 15, style!(Color::Green));
+        set_segment_subset_style(&mut segment, 5, 15, Color::Green.as_style());
 
         assert_eq!(
             vec![
@@ -180,8 +174,8 @@ mod tests {
             text!("TEST4"),
         ];
 
-        set_segment_subset_style(&mut segment, 3, 7, style!(Color::Green));
-        set_segment_subset_style(&mut segment, 11, 14, style!(Color::Magenta));
+        set_segment_subset_style(&mut segment, 3, 7, Color::Green.as_style());
+        set_segment_subset_style(&mut segment, 11, 14, Color::Magenta.as_style());
 
         assert_eq!(
             vec![

@@ -18,7 +18,11 @@ use crate::{
 /// # let mut device = VirtualDevice::new();
 /// # let mut interface = Interface::new(&mut device)?;
 /// # let mut stdin = VirtualInputDevice;
-/// use tty_form::{Form, Step, CompoundStep, TextBlockStep, Control, TextInput};
+/// use tty_form::{
+///     Form,
+///     step::{Step, CompoundStep, TextBlockStep},
+///     control::{Control, TextInput},
+/// };
 ///
 /// let mut form = Form::new();
 ///

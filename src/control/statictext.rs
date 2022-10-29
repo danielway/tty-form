@@ -3,21 +3,25 @@ use tty_interface::Style;
 
 use crate::{
     dependency::{Action, DependencyId, Evaluation},
-    step::compound::CompoundStep,
+    step::CompoundStep,
     text::{DrawerContents, Segment, Text},
 };
 
 use super::Control;
 
-/// Static, unfocusable display text. May be formatted.
+/// Static, unfocusable, formatable display text. May be dependent on other form elements.
 ///
 /// # Examples
 /// ```
-/// use tty_form::{CompoundStep, Control, StaticText};
 /// use tty_interface::Style;
 ///
+/// use tty_form::{
+///     step::CompoundStep,
+///     control::{Control, StaticText},
+/// };
+///
 /// let mut text = StaticText::new("Hello, world!");
-/// text.set_style(Style::default().set_bold(true));
+/// text.set_style(Style::new().set_bold(true));
 ///
 /// let mut step = CompoundStep::new();
 /// text.add_to(&mut step);
@@ -26,13 +30,6 @@ pub struct StaticText {
     text: String,
     style: Option<Style>,
     dependency: Option<(DependencyId, Action)>,
-}
-
-impl Default for StaticText {
-    /// Create a default static text control with no contents.
-    fn default() -> Self {
-        Self::new("")
-    }
 }
 
 impl StaticText {
@@ -73,7 +70,7 @@ impl Control for StaticText {
     }
 
     fn text(&self) -> (Segment, Option<u16>) {
-        (Text::new(self.text.clone()).as_segment(), None)
+        (Text::new(self.text.to_string()).as_segment(), None)
     }
 
     fn drawer(&self) -> Option<DrawerContents> {
