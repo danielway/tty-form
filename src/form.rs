@@ -6,7 +6,7 @@ use crate::{
     device::InputDevice,
     step::{InputResult, Step},
     utility::render_segment,
-    Result, Error,
+    Error, Result,
 };
 
 /// A TTY-based form with multiple steps and inputs.
