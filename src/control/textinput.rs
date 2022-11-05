@@ -104,7 +104,8 @@ impl Control for TextInput {
 
     fn evaluate(&self, evaluation: &Evaluation) -> bool {
         match evaluation {
-            Evaluation::Equals(value) => &self.text.value() == value,
+            Evaluation::Equal(value) => &self.text.value() == value,
+            Evaluation::NotEqual(value) => &self.text.value() != value,
             Evaluation::IsEmpty => self.text.value().is_empty(),
         }
     }

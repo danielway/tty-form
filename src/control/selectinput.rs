@@ -131,7 +131,8 @@ impl Control for SelectInput {
 
     fn evaluate(&self, evaluation: &Evaluation) -> bool {
         match evaluation {
-            Evaluation::Equals(value) => self.selected_option_value() == value,
+            Evaluation::Equal(value) => self.selected_option_value() == value,
+            Evaluation::NotEqual(value) => self.selected_option_value() != value,
             Evaluation::IsEmpty => false,
         }
     }

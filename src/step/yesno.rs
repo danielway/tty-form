@@ -1,5 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent};
-use tty_interface::{Interface, Position, Style};
+use tty_interface::{pos, Interface, Position};
+use tty_text::Key;
 
 use crate::{
     dependency::{DependencyId, DependencyState, Evaluation},
@@ -10,21 +11,26 @@ use crate::{
 
 use super::{InputResult, Step};
 
+/// A boolean input which, if true, accepts a text description.
 pub struct YesNoStep {
     prompt: String,
     prefix: String,
     omit_if_no: bool,
-    value: bool,
+    toggle_value: bool,
+    text_prompt: String,
+    text: tty_text::Text,
     evaluation: Option<(DependencyId, Evaluation)>,
 }
 
 impl YesNoStep {
-    pub fn new(prompt: &str, prefix: &str) -> Self {
+    pub fn new(prompt: &str, description_prompt: &str, prefix: &str) -> Self {
         Self {
             prompt: prompt.to_string(),
             prefix: prefix.to_string(),
             omit_if_no: true,
-            value: false,
+            toggle_value: false,
+            text_prompt: description_prompt.to_string(),
+            text: tty_text::Text::new(false),
             evaluation: None,
         }
     }
@@ -39,11 +45,13 @@ impl YesNoStep {
         id
     }
 
-    fn value_as_string(&self) -> &str {
-        if self.value {
-            "Yes"
+    fn get_display_value(&self) -> String {
+        if !self.text.value().is_empty() {
+            self.text.value()
+        } else if self.toggle_value {
+            String::from("Yes")
         } else {
-            "No"
+            String::from("No")
         }
     }
 }
@@ -58,22 +66,31 @@ impl Step for YesNoStep {
         position: Position,
         is_focused: bool,
     ) -> u16 {
-        if self.value || is_focused || !self.omit_if_no {
-            let style = if is_focused && self.omit_if_no && !self.value {
-                muted_style()
-            } else {
-                Style::new()
-            };
+        if self.toggle_value || is_focused || !self.omit_if_no {
+            let display_value = self.get_display_value();
+            if !self.toggle_value && (is_focused || !self.omit_if_no) {
+                // Render muted prompt and value
+                interface.set_styled(
+                    position,
+                    &format!("{}: {}", self.prefix, display_value),
+                    muted_style(),
+                );
+            } else if is_focused && self.toggle_value && self.text.value().is_empty() {
+                // Render a white prefix with muted value
+                interface.set(position, &format!("{}:", self.prefix));
 
-            if is_focused {
-                interface.set_cursor(Some(position));
+                let value_position = pos!(self.prefix.len() as u16 + 2, position.y());
+                interface.set_styled(value_position, &display_value, muted_style());
+            } else if is_focused || self.toggle_value {
+                // Render white prompt and value
+                interface.set(position, &format!("{}: {}", self.prefix, display_value));
             }
 
-            interface.set_styled(
-                position,
-                &format!("{}: {}", self.prefix, self.value_as_string()),
-                style,
-            );
+            if is_focused && self.toggle_value {
+                let (cursor_column, _) = self.text.cursor();
+                let cursor = pos!((self.prefix.len() + 2 + cursor_column) as u16, position.y());
+                interface.set_cursor(Some(cursor));
+            }
 
             return 1;
         }
@@ -87,15 +104,31 @@ impl Step for YesNoStep {
         input: KeyEvent,
     ) -> Option<InputResult> {
         match input.code {
+            KeyCode::Esc | KeyCode::BackTab => return Some(InputResult::RetreatForm),
             KeyCode::Enter | KeyCode::Tab => return Some(InputResult::AdvanceForm),
-            KeyCode::Esc => return Some(InputResult::RetreatForm),
-            KeyCode::Up | KeyCode::Down => self.value = !self.value,
             _ => {}
         };
 
+        if self.text.value().is_empty()
+            && (input.code == KeyCode::Up || input.code == KeyCode::Down)
+        {
+            self.toggle_value = !self.toggle_value;
+        }
+
+        if self.toggle_value {
+            match input.code {
+                KeyCode::Char(ch) => self.text.handle_input(Key::Char(ch)),
+                KeyCode::Backspace => self.text.handle_input(Key::Backspace),
+                KeyCode::Left => self.text.handle_input(Key::Left),
+                KeyCode::Right => self.text.handle_input(Key::Right),
+                _ => {}
+            };
+        }
+
         if let Some((id, evaluation)) = &self.evaluation {
             let value = match evaluation {
-                Evaluation::Equals(value) => value == self.value_as_string(),
+                Evaluation::Equal(value) => value == &self.get_display_value(),
+                Evaluation::NotEqual(value) => value != &self.get_display_value(),
                 Evaluation::IsEmpty => false,
             };
 
@@ -106,7 +139,15 @@ impl Step for YesNoStep {
     }
 
     fn help(&self) -> Segment {
-        Text::new_styled(self.prompt.to_string(), help_style()).as_segment()
+        Text::new_styled(
+            if self.toggle_value {
+                self.text_prompt.to_string()
+            } else {
+                self.prompt.to_string()
+            },
+            help_style(),
+        )
+        .as_segment()
     }
 
     fn drawer(&self) -> Option<DrawerContents> {
@@ -114,11 +155,11 @@ impl Step for YesNoStep {
     }
 
     fn result(&self, _dependency_state: &DependencyState) -> String {
-        if self.omit_if_no && !self.value {
+        if self.omit_if_no && !self.toggle_value {
             return String::new();
         }
 
-        format!("{}: {}", self.prefix, self.value_as_string())
+        format!("{}: {}", self.prefix, self.get_display_value())
     }
 
     fn add_to(self, form: &mut Form) {

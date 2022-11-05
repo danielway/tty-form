@@ -16,7 +16,7 @@ use crate::{
 /// # use tty_interface::{Interface, test::VirtualDevice};
 /// # use tty_form::{Error, test::VirtualInputDevice};
 /// # let mut device = VirtualDevice::new();
-/// # let mut interface = Interface::new(&mut device)?;
+/// # let mut interface = Interface::new_relative(&mut device)?;
 /// # let mut stdin = VirtualInputDevice;
 /// use tty_form::{
 ///     Form,

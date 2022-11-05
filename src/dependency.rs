@@ -23,7 +23,9 @@ pub enum Evaluation {
     /// Evaluates true if the source is empty.
     IsEmpty,
     /// Evaluates true if the source's value matches the evaluation parameter.
-    Equals(String),
+    Equal(String),
+    /// Evaluates true if the source's value is different from the evaluation parameter.
+    NotEqual(String),
 }
 
 /// An action to apply to the target if the source evaluates true.

@@ -51,9 +51,13 @@ fn execute() -> Result<String> {
     long_description.set_margins(Some(1), Some(1));
     long_description.set_max_line_length(100);
 
-    let mut breaking_step = YesNoStep::new("Is this commit a breaking change?", "BREAKING CHANGE");
+    let mut breaking_step = YesNoStep::new(
+        "Is this commit a breaking change?",
+        "Enter a description of the breaking change.",
+        "BREAKING CHANGE",
+    );
 
-    let breaking_change = breaking_step.set_evaluation(Evaluation::Equals("Yes".to_string()));
+    let breaking_change = breaking_step.set_evaluation(Evaluation::Equal("Yes".to_string()));
     breaking_bang.set_dependency(breaking_change, Action::Show);
 
     opening_paren.add_to(&mut commit_summary);
