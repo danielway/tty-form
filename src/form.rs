@@ -124,6 +124,8 @@ impl Form {
             result.push_str(&step.result(&dependency_state));
         }
 
+        result = result.trim().to_string();
+
         Ok(result)
     }
 

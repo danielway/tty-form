@@ -250,10 +250,26 @@ impl Step for CompoundStep {
         self.controls[self.active_control].drawer()
     }
 
-    fn result(&self, _dependency_state: &DependencyState) -> String {
+    fn result(&self, dependency_state: &DependencyState) -> String {
         let mut result = String::new();
 
         for control in &self.controls {
+            if let Some((id, action)) = control.dependency() {
+                let evaluation_result = dependency_state.get_evaluation(&id);
+                match action {
+                    Action::Hide => {
+                        if evaluation_result {
+                            continue;
+                        }
+                    }
+                    Action::Show => {
+                        if !evaluation_result {
+                            continue;
+                        }
+                    }
+                }
+            }
+
             let (segments, _) = control.text();
             segments
                 .iter()

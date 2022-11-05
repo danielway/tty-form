@@ -114,6 +114,10 @@ impl Step for YesNoStep {
     }
 
     fn result(&self, _dependency_state: &DependencyState) -> String {
+        if self.omit_if_no && !self.value {
+            return String::new();
+        }
+
         format!("{}: {}", self.prefix, self.value_as_string())
     }
 
