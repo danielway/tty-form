@@ -6,7 +6,7 @@ use crate::{
     device::InputDevice,
     step::{InputResult, Step},
     utility::render_segment,
-    Result,
+    Result, Error,
 };
 
 /// A TTY-based form with multiple steps and inputs.
@@ -93,7 +93,7 @@ impl Form {
                 if (KeyModifiers::CONTROL, KeyCode::Char('c'))
                     == (key_event.modifiers, key_event.code)
                 {
-                    break;
+                    return Err(Error::Canceled);
                 }
 
                 if let Some(action) =
@@ -107,7 +107,7 @@ impl Form {
                         }
                         InputResult::RetreatForm => {
                             if self.retreat() {
-                                break;
+                                return Err(Error::Canceled);
                             }
                         }
                     }

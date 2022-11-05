@@ -4,6 +4,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// A failed form operation's error information.
 #[derive(Debug)]
 pub enum Error {
+    /// Form was canceled before completion.
+    Canceled,
     /// A terminal interface error.
     Interface(tty_interface::Error),
     /// A low-level terminal interaction error.
