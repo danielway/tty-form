@@ -69,7 +69,7 @@ fn execute() -> Result<String> {
     let mut stdout = stdout();
     let mut stdin = StdinDevice;
 
-    let mut interface = Interface::new(&mut stdout)?;
+    let mut interface = Interface::new_relative(&mut stdout)?;
     let result = form.execute(&mut interface, &mut stdin)?;
 
     interface.exit()?;
