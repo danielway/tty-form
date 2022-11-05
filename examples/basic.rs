@@ -4,7 +4,7 @@ use tty_form::{
     control::{Control, SelectInput, StaticText, TextInput},
     dependency::{Action, Evaluation},
     device::StdinDevice,
-    step::{CompoundStep, Step, TextBlockStep, YesNoStep},
+    step::{CompoundStep, KeyValueStep, Step, TextBlockStep, YesNoStep},
     Form, Result,
 };
 use tty_interface::Interface;
@@ -57,6 +57,8 @@ fn execute() -> Result<String> {
         "BREAKING CHANGE",
     );
 
+    let trailers = KeyValueStep::new("Enter any key-value trailers, such as tickets.");
+
     let breaking_change = breaking_step.set_evaluation(Evaluation::Equal("Yes".to_string()));
     breaking_bang.set_dependency(breaking_change, Action::Show);
 
@@ -68,6 +70,7 @@ fn execute() -> Result<String> {
     description.add_to(&mut commit_summary);
     commit_summary.add_to(&mut form);
     long_description.add_to(&mut form);
+    trailers.add_to(&mut form);
     breaking_step.add_to(&mut form);
 
     let mut stdout = stdout();

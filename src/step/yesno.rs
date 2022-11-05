@@ -159,7 +159,7 @@ impl Step for YesNoStep {
             return String::new();
         }
 
-        format!("{}: {}", self.prefix, self.get_display_value())
+        format!("{}: {}\n", self.prefix, self.get_display_value())
     }
 
     fn add_to(self, form: &mut Form) {

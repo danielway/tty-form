@@ -118,6 +118,9 @@ impl Form {
             interface.apply()?;
         }
 
+        self.render_form(interface, &dependency_state);
+        interface.apply()?;
+
         let mut result = String::new();
 
         for step in self.steps {
