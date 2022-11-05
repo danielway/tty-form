@@ -91,8 +91,10 @@ impl Step for KeyValueStep {
             KeyCode::Enter | KeyCode::Tab => {
                 if text.value().is_empty() {
                     if self.key_focused {
-                        self.pairs.remove(self.focused_pair);
-                        self.focused_pair -= 1;
+                        if self.focused_pair > 0 {
+                            self.pairs.remove(self.focused_pair);
+                            self.focused_pair -= 1;
+                        }
 
                         // Advance past this step
                         return Some(InputResult::AdvanceForm);
