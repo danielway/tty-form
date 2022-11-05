@@ -2,7 +2,7 @@
 description = "Provides generic terminal form capabilities."
 authors = ["Daniel Way <contact@danieldway.com>"]
 name = "tty-form"
-version = "2.0.0-beta.3"
+version = "2.0.0-beta.4"
 license = "MIT"
 edition = "2021"
 repository = "https://github.com/danielway/tty-text"
