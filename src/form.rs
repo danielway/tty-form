@@ -93,7 +93,7 @@ impl Form {
                 if (KeyModifiers::CONTROL, KeyCode::Char('c'))
                     == (key_event.modifiers, key_event.code)
                 {
-                    return Err(Error::Canceled);
+                    return self.cancel_form(interface, &dependency_state);
                 }
 
                 if let Some(action) =
@@ -107,7 +107,7 @@ impl Form {
                         }
                         InputResult::RetreatForm => {
                             if self.retreat() {
-                                return Err(Error::Canceled);
+                                return self.cancel_form(interface, &dependency_state);
                             }
                         }
                     }
@@ -130,6 +130,19 @@ impl Form {
         result = result.trim().to_string();
 
         Ok(result)
+    }
+
+    /// Exits the form early by performing a final, unfocused render and returning a cancelation code.
+    fn cancel_form(
+        &mut self,
+        interface: &mut Interface,
+        dependency_state: &DependencyState,
+    ) -> Result<String> {
+        self.active_step = usize::MAX;
+        self.render_form(interface, &dependency_state);
+        interface.apply()?;
+
+        return Err(Error::Canceled);
     }
 
     /// Advance the form to its next step. Returns whether we've finished the form.

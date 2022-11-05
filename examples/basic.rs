@@ -5,7 +5,7 @@ use tty_form::{
     dependency::{Action, Evaluation},
     device::StdinDevice,
     step::{CompoundStep, KeyValueStep, Step, TextBlockStep, YesNoStep},
-    Form, Result,
+    Error, Form, Result,
 };
 use tty_interface::Interface;
 
@@ -77,9 +77,16 @@ fn execute() -> Result<String> {
     let mut stdin = StdinDevice;
 
     let mut interface = Interface::new_relative(&mut stdout)?;
-    let result = form.execute(&mut interface, &mut stdin)?;
 
+    let result = form.execute(&mut interface, &mut stdin);
     interface.exit()?;
 
-    Ok(result)
+    let mut output = String::new();
+    match result {
+        Ok(value) => output = value,
+        Err(Error::Canceled) => println!("Form canceled."),
+        Err(err) => eprintln!("Unexpected error occurred: {:?}", err),
+    }
+
+    Ok(output)
 }
